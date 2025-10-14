@@ -1,0 +1,104 @@
+[
+  {
+    "id": "1",
+    "name": "Jhon Walker",
+    "username": "JWalk",
+    "city": "Santiago",
+    "avatar": "/placeholder.svg?height=80&width=80",
+    "coverImage": "/placeholder.svg?height=200&width=400",
+    "rating": 4.5,
+    "totalServices": 153,
+    "specialty": "Experto en Servidores",
+    "distance": "1.2 km",
+    "eta": "4 min",
+    "about": "Ingeniero informático con más de 5 años de experiencia, especializado en tecnología Microsoft y configuración de dispositivos.",
+    "skills": [
+      { "name": "Microsoft", "level": 90 },
+      { "name": "Hardware", "level": 85 },
+      { "name": "Redes", "level": 75 },
+      { "name": "BBDD", "level": 70 }
+    ],
+    "services": [
+      {
+        "id": "s1",
+        "name": "Soporte Microsoft",
+        "icon": "microsoft",
+        "color": "bg-purple-100"
+      },
+      {
+        "id": "s2",
+        "name": "Configuración de Hardware",
+        "icon": "monitor",
+        "color": "bg-blue-100"
+      }
+    ]
+  },
+  {
+    "id": "2",
+    "name": "Tomás T.",
+    "username": "TomasT",
+    "city": "Santiago",
+    "avatar": "/placeholder.svg?height=80&width=80",
+    "coverImage": "/placeholder.svg?height=200&width=400",
+    "rating": 4.1,
+    "totalServices": 87,
+    "specialty": "Experto en Front End",
+    "distance": "2.5 km",
+    "eta": "8 min",
+    "about": "Desarrollador front-end especializado en interfaces modernas y experiencia de usuario.",
+    "skills": [
+      { "name": "React", "level": 95 },
+      { "name": "CSS", "level": 90 },
+      { "name": "JavaScript", "level": 88 },
+      { "name": "UX/UI", "level": 80 }
+    ],
+    "services": [
+      {
+        "id": "s3",
+        "name": "Desarrollo Web",
+        "icon": "code",
+        "color": "bg-green-100"
+      },
+      {
+        "id": "s4",
+        "name": "Diseño de Interfaces",
+        "icon": "palette",
+        "color": "bg-pink-100"
+      }
+    ]
+  },
+  {
+    "id": "3",
+    "name": "María González",
+    "username": "MariaG",
+    "city": "Santiago",
+    "avatar": "/placeholder.svg?height=80&width=80",
+    "coverImage": "/placeholder.svg?height=200&width=400",
+    "rating": 4.8,
+    "totalServices": 234,
+    "specialty": "Experto en Back End",
+    "distance": "0.8 km",
+    "eta": "3 min",
+    "about": "Ingeniera de software con amplia experiencia en arquitectura de sistemas y bases de datos.",
+    "skills": [
+      { "name": "Node.js", "level": 92 },
+      { "name": "Databases", "level": 95 },
+      { "name": "APIs", "level": 90 },
+      { "name": "DevOps", "level": 85 }
+    ],
+    "services": [
+      {
+        "id": "s5",
+        "name": "Desarrollo Backend",
+        "icon": "server",
+        "color": "bg-indigo-100"
+      },
+      {
+        "id": "s6",
+        "name": "Optimización de BD",
+        "icon": "database",
+        "color": "bg-yellow-100"
+      }
+    ]
+  }
+]
