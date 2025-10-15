@@ -23,7 +23,7 @@ export default function TechnicianProfilePage({
       <div className="flex h-full flex-col lg:flex-row">
         {/* Map - hidden on mobile, visible on desktop */}
         <div className="hidden lg:block lg:w-[65%]">
-          <MapViewport showTechnicians />
+          <MapViewport showTechnicians selectedTechnicianId={technician.id} />
         </div>
 
         {/* Profile Panel */}
