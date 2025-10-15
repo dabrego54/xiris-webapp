@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Facebook, Fingerprint, Linkedin, Lock, Mail, UserRound } from "lucide-react"
+import { type ComponentType, useMemo, useState } from "react"
+import { Linkedin, Lock, Mail, UserRound } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 const tabs = [
   { id: "login", label: "Login" },
@@ -59,20 +60,13 @@ export default function LoginRegisterPanel() {
           <span className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
         </div>
 
-        <div className="mt-6 flex items-center justify-between gap-4">
-          <SocialButton Icon={Facebook} label="Facebook" />
-          <SocialButton Icon={Linkedin} label="LinkedIn" />
-          <SocialButton Icon={Mail} label="Correo" />
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <SocialButton Icon={GoogleIcon} label="Google" />
+          <SocialButton Icon={MicrosoftIcon} label="Microsoft" />
+          <SocialButton Icon={Linkedin} label="LinkedIn" iconClassName="text-[#0A66C2]" />
+          <SocialButton Icon={Mail} label="Correo" iconClassName="text-brand" />
         </div>
       </div>
-
-      <button
-        type="button"
-        className="mt-10 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand to-brand-600 py-3 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(124,58,237,0.28)] transition-transform hover:scale-[1.01]"
-      >
-        <Fingerprint className="h-5 w-5" />
-        Login con Touch ID
-      </button>
     </div>
   )
 }
@@ -209,18 +203,67 @@ function RegisterForm() {
 }
 
 interface SocialButtonProps {
-  Icon: typeof Facebook
+  Icon: ComponentType<{ className?: string }>
   label: string
+  iconClassName?: string
+  className?: string
 }
 
-function SocialButton({ Icon, label }: SocialButtonProps) {
+function SocialButton({ Icon, label, iconClassName, className }: SocialButtonProps) {
   return (
     <button
       type="button"
-      className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-white py-2 text-xs font-semibold text-ink shadow-sm transition hover:border-brand hover:text-brand"
+      className={cn(
+        "flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-white py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-brand hover:text-brand",
+        className,
+      )}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className={cn("h-4 w-4", iconClassName)} />
       {label}
     </button>
+  )
+}
+
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={cn("h-4 w-4", className)}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M21.6 12.227c0-.638-.057-1.252-.163-1.84H12v3.481h5.381a4.599 4.599 0 0 1-1.995 3.017v2.508h3.23c1.89-1.739 2.984-4.3 2.984-7.166Z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 22c2.7 0 4.968-.893 6.624-2.415l-3.23-2.508c-.896.6-2.04.955-3.394.955-2.611 0-4.822-1.764-5.611-4.144H3.05v2.603A9.997 9.997 0 0 0 12 22Z"
+        fill="#34A853"
+      />
+      <path
+        d="M6.389 13.888A5.996 5.996 0 0 1 6.077 12c0-.655.113-1.29.312-1.888V7.509H3.05A9.997 9.997 0 0 0 2 12c0 1.61.38 3.135 1.05 4.491l3.339-2.603Z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 6.6c1.467 0 2.785.505 3.821 1.495l2.866-2.866C16.964 3.384 14.7 2.4 12 2.4a9.997 9.997 0 0 0-8.95 5.109l3.339 2.603C7.178 8.364 9.389 6.6 12 6.6Z"
+        fill="#EA4335"
+      />
+    </svg>
+  )
+}
+
+function MicrosoftIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={cn("h-4 w-4", className)}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path fill="#F35325" d="M3 3h9v9H3z" />
+      <path fill="#81BC06" d="M12 3h9v9h-9z" />
+      <path fill="#05A6F0" d="M3 12h9v9H3z" />
+      <path fill="#FFBA08" d="M12 12h9v9h-9z" />
+    </svg>
   )
 }
