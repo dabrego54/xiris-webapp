@@ -9,7 +9,7 @@ type NavProps = {
 }
 
 const navItems = [
-  { icon: Home, label: "Inicio", href: "/" },
+  { icon: Home, label: "Inicio", href: "/dashboard" },
   { icon: Briefcase, label: "Servicios", href: "/servicios" },
   { icon: Search, label: "Buscar", href: "/tecnicos" },
   { icon: MessageCircle, label: "Chat", href: "/chat/1" },
