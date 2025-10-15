@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { MapPin, Navigation } from "lucide-react"
 
 import techniciansData from "@/data/technicians.json"
@@ -16,11 +16,17 @@ type Technician = {
   }
 }
 
-type MapViewportProps = {
+export type MapViewportControlProps = {
+  centerMap: () => void
+  canCenter: boolean
+}
+
+export type MapViewportProps = {
   showTechnicians?: boolean
   showRoute?: boolean
   eta?: string
   selectedTechnicianId?: string
+  renderBottomControls?: (controls: MapViewportControlProps) => ReactNode
 }
 
 type LeafletModule = {
@@ -145,6 +151,7 @@ export default function MapViewport({
   showRoute = false,
   eta,
   selectedTechnicianId,
+  renderBottomControls,
 }: MapViewportProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
@@ -421,8 +428,15 @@ export default function MapViewport({
     })
   }, [userLocation])
 
+  const canCenter = Boolean(userLocation) && !leafletError
+
+  const bottomControls = renderBottomControls?.({
+    centerMap: handleCenter,
+    canCenter,
+  })
+
   return (
-    <div className="relative h-full w-full">
+    <div className="relative isolate h-full w-full">
       <div ref={mapContainerRef} className="h-full w-full" />
 
       {!isMapReady && !leafletError && (
@@ -437,7 +451,7 @@ export default function MapViewport({
         </div>
       )}
 
-      <div className="pointer-events-none absolute left-4 top-4 z-[1000] flex max-w-xs flex-col gap-2">
+      <div className="pointer-events-none absolute left-4 top-4 z-[10000] flex max-w-xs flex-col gap-2">
         <div className="pointer-events-auto rounded-2xl bg-white/90 px-4 py-3 shadow-lg backdrop-blur">
           <div className="flex items-start gap-2">
             <MapPin className="mt-0.5 h-4 w-4 text-purple-600" />
@@ -460,7 +474,7 @@ export default function MapViewport({
       </div>
 
       {showRoute && eta && (
-        <div className="pointer-events-none absolute right-4 top-4 z-[1000]">
+        <div className="pointer-events-none absolute right-4 top-4 z-[10000]">
           <div className="rounded-2xl bg-white/90 px-4 py-3 shadow-lg backdrop-blur">
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
               <Navigation className="h-4 w-4 text-purple-600" />
@@ -474,15 +488,21 @@ export default function MapViewport({
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={handleCenter}
-        disabled={!userLocation || !!leafletError}
-        className="absolute bottom-6 right-6 flex h-12 w-12 items-center justify-center rounded-full bg-lime-400 text-white shadow-lg transition hover:bg-lime-500 disabled:cursor-not-allowed disabled:bg-gray-300"
-        aria-label="Centrar mapa"
-      >
-        <Navigation className="h-6 w-6" />
-      </button>
+      {bottomControls ? (
+        <div className="pointer-events-none absolute bottom-24 left-1/2 z-[10000] flex -translate-x-1/2 items-center gap-3 lg:bottom-8 lg:left-auto lg:right-8 lg:translate-x-0">
+          {bottomControls}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={handleCenter}
+          disabled={!canCenter}
+          className="pointer-events-auto absolute bottom-6 left-6 z-[10000] flex h-12 w-12 items-center justify-center rounded-full bg-lime-400 text-white shadow-lg transition hover:bg-lime-500 disabled:cursor-not-allowed disabled:bg-gray-300 lg:bottom-8 lg:left-auto lg:right-32"
+          aria-label="Centrar mapa"
+        >
+          <Navigation className="h-6 w-6" />
+        </button>
+      )}
     </div>
   )
 }
