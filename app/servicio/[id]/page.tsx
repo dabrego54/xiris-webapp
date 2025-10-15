@@ -23,7 +23,7 @@ export default function ServicioPage({
       <div className="flex h-full flex-col lg:flex-row">
         {/* Map with route */}
         <div className="h-[50vh] lg:h-full lg:w-[65%]">
-          <MapViewport showRoute eta={technician.eta} />
+          <MapViewport showRoute eta={technician.eta} selectedTechnicianId={technician.id} />
         </div>
 
         {/* Service Status Panel */}

@@ -11,6 +11,7 @@
     "specialty": "Experto en Servidores",
     "distance": "1.2 km",
     "eta": "4 min",
+    "location": { "lat": -33.4468, "lng": -70.6619 },
     "about": "Ingeniero informático con más de 5 años de experiencia, especializado en tecnología Microsoft y configuración de dispositivos.",
     "skills": [
       { "name": "Microsoft", "level": 90 },
@@ -45,6 +46,7 @@
     "specialty": "Experto en Front End",
     "distance": "2.5 km",
     "eta": "8 min",
+    "location": { "lat": -33.4564, "lng": -70.6498 },
     "about": "Desarrollador front-end especializado en interfaces modernas y experiencia de usuario.",
     "skills": [
       { "name": "React", "level": 95 },
@@ -79,6 +81,7 @@
     "specialty": "Experto en Back End",
     "distance": "0.8 km",
     "eta": "3 min",
+    "location": { "lat": -33.4405, "lng": -70.6791 },
     "about": "Ingeniera de software con amplia experiencia en arquitectura de sistemas y bases de datos.",
     "skills": [
       { "name": "Node.js", "level": 92 },

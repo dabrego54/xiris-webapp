@@ -7,7 +7,7 @@ export default function HomePage() {
     <AppShell>
       <div className="relative h-full w-full">
         <MapViewport />
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 lg:bottom-8 lg:left-auto lg:right-8 lg:translate-x-0">
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 lg:bottom-8 lg:left-auto lg:right-8 lg:translate-x-0 z-[1200]">
           <PrimaryCTA href="/tecnicos">Buscando Técnicos Cercanos</PrimaryCTA>
         </div>
       </div>
