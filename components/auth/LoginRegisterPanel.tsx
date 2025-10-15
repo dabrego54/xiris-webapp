@@ -1,6 +1,7 @@
 "use client"
 
 import { type ComponentType, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Linkedin, Lock, Mail, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -13,6 +14,7 @@ type TabId = (typeof tabs)[number]["id"]
 
 export default function LoginRegisterPanel() {
   const [activeTab, setActiveTab] = useState<TabId>("login")
+  const router = useRouter()
 
   const title = useMemo(
     () => (activeTab === "login" ? "Bienvenido de vuelta" : "Crear una nueva cuenta"),
@@ -52,7 +54,11 @@ export default function LoginRegisterPanel() {
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
 
-      {activeTab === "login" ? <LoginForm /> : <RegisterForm />}
+      {activeTab === "login" ? (
+        <LoginForm onSuccess={() => router.push("/dashboard")} />
+      ) : (
+        <RegisterForm onSuccess={() => router.push("/dashboard")} />
+      )}
 
       <div className="mt-8">
         <div className="relative flex items-center justify-center text-xs uppercase tracking-widest text-muted-foreground">
@@ -61,19 +67,47 @@ export default function LoginRegisterPanel() {
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3">
-          <SocialButton Icon={GoogleIcon} label="Google" />
-          <SocialButton Icon={MicrosoftIcon} label="Microsoft" />
-          <SocialButton Icon={Linkedin} label="LinkedIn" iconClassName="text-[#0A66C2]" />
-          <SocialButton Icon={Mail} label="Correo" iconClassName="text-brand" />
+          <SocialButton
+            Icon={GoogleIcon}
+            label="Google"
+            onClick={() => router.push("/dashboard")}
+          />
+          <SocialButton
+            Icon={MicrosoftIcon}
+            label="Microsoft"
+            onClick={() => router.push("/dashboard")}
+          />
+          <SocialButton
+            Icon={Linkedin}
+            label="LinkedIn"
+            iconClassName="text-[#0A66C2]"
+            onClick={() => router.push("/dashboard")}
+          />
+          <SocialButton
+            Icon={Mail}
+            label="Correo"
+            iconClassName="text-brand"
+            onClick={() => router.push("/dashboard")}
+          />
         </div>
       </div>
     </div>
   )
 }
 
-function LoginForm() {
+interface LoginFormProps {
+  onSuccess: () => void
+}
+
+function LoginForm({ onSuccess }: LoginFormProps) {
   return (
-    <form className="mt-8 space-y-5">
+    <form
+      className="mt-8 space-y-5"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSuccess()
+      }}
+    >
       <div className="space-y-2">
         <label htmlFor="login-email" className="block text-sm font-medium text-ink">
           Correo electrónico
@@ -124,9 +158,19 @@ function LoginForm() {
   )
 }
 
-function RegisterForm() {
+interface RegisterFormProps {
+  onSuccess: () => void
+}
+
+function RegisterForm({ onSuccess }: RegisterFormProps) {
   return (
-    <form className="mt-8 space-y-5">
+    <form
+      className="mt-8 space-y-5"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSuccess()
+      }}
+    >
       <div className="space-y-2">
         <label htmlFor="register-name" className="block text-sm font-medium text-ink">
           Nombre completo
@@ -207,9 +251,10 @@ interface SocialButtonProps {
   label: string
   iconClassName?: string
   className?: string
+  onClick?: () => void
 }
 
-function SocialButton({ Icon, label, iconClassName, className }: SocialButtonProps) {
+function SocialButton({ Icon, label, iconClassName, className, onClick }: SocialButtonProps) {
   return (
     <button
       type="button"
@@ -217,6 +262,7 @@ function SocialButton({ Icon, label, iconClassName, className }: SocialButtonPro
         "flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-white py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-brand hover:text-brand",
         className,
       )}
+      onClick={onClick}
     >
       <Icon className={cn("h-4 w-4", iconClassName)} />
       {label}
