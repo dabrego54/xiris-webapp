@@ -1,6 +1,5 @@
 import AppShell from "@/components/AppShell"
-import MapFloatingControls from "@/components/MapFloatingControls"
-import MapViewport from "@/components/MapViewport"
+import MapViewportWithFloatingControls from "@/components/MapViewportWithFloatingControls"
 import TechnicianListPanel from "@/components/TechnicianListPanel"
 import techniciansData from "@/data/technicians.json"
 
@@ -10,16 +9,10 @@ export default function TecnicosPage() {
       <div className="flex h-full flex-col lg:flex-row">
         {/* Map - hidden on mobile, visible on desktop */}
         <div className="hidden lg:block lg:w-[65%]">
-          <MapViewport
+          <MapViewportWithFloatingControls
             showTechnicians
-            renderBottomControls={({ centerMap, canCenter }) => (
-              <MapFloatingControls
-                onCenter={centerMap}
-                canCenter={canCenter}
-                ctaHref="/tecnicos"
-                ctaLabel="Buscando Técnicos Cercanos"
-              />
-            )}
+            ctaHref="/tecnicos"
+            ctaLabel="Buscando Técnicos Cercanos"
           />
         </div>
 

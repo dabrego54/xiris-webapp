@@ -16,12 +16,12 @@ type Technician = {
   }
 }
 
-type MapViewportControlProps = {
+export type MapViewportControlProps = {
   centerMap: () => void
   canCenter: boolean
 }
 
-type MapViewportProps = {
+export type MapViewportProps = {
   showTechnicians?: boolean
   showRoute?: boolean
   eta?: string
