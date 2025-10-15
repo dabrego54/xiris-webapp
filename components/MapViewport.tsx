@@ -478,7 +478,7 @@ export default function MapViewport({
         type="button"
         onClick={handleCenter}
         disabled={!userLocation || !!leafletError}
-        className="pointer-events-auto absolute bottom-6 right-6 z-[10000] flex h-12 w-12 items-center justify-center rounded-full bg-lime-400 text-white shadow-lg transition hover:bg-lime-500 disabled:cursor-not-allowed disabled:bg-gray-300"
+        className="pointer-events-auto absolute bottom-6 left-6 z-[10000] flex h-12 w-12 items-center justify-center rounded-full bg-lime-400 text-white shadow-lg transition hover:bg-lime-500 disabled:cursor-not-allowed disabled:bg-gray-300 lg:bottom-8 lg:left-auto lg:right-32"
         aria-label="Centrar mapa"
       >
         <Navigation className="h-6 w-6" />
