@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { z } from "zod"
 
 import { signIn } from "@/app/actions/auth.actions"
+import { GoogleAuthDialog } from "@/components/auth/google-auth-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -24,27 +25,6 @@ type SignInFormValues = z.infer<typeof loginSchema>
 
 const brandGradient =
   "bg-gradient-to-r from-[#8B5CF6] via-[#7C3AED] to-[#5B21B6] text-white shadow-[0_18px_48px_rgba(93,63,211,0.35)]"
-
-const googleIcon = (
-  <svg aria-hidden className="h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M12.24 10.8v3.84h5.36c-.22 1.23-.96 2.27-2.06 2.97l3.33 2.58c1.95-1.8 3.07-4.44 3.07-7.59 0-.73-.07-1.44-.2-2.12z"
-      fill="#4285F4"
-    />
-    <path
-      d="M6.7 14.32l-.84.64-2.64 2.05C4.93 20.5 8.31 22.8 12.24 22.8c2.94 0 5.4-.97 7.2-2.61l-3.33-2.58c-.9.6-2.06.96-3.87.96-2.97 0-5.49-1.98-6.4-4.74z"
-      fill="#34A853"
-    />
-    <path
-      d="M3.22 6.99A10.5 10.5 0 0 0 1.44 12c0 1.86.48 3.61 1.32 5.13 0 .04 3.94-3.05 3.94-3.05-.24-.72-.38-1.49-.38-2.3 0-.8.14-1.57.38-2.29z"
-      fill="#FBBC05"
-    />
-    <path
-      d="M12.24 5.4c1.61 0 3.05.56 4.19 1.64l3.12-3.11C17.62 1.7 15.18.6 12.24.6 8.31.6 4.93 2.91 3.22 6.99l3.94 3.06c.91-2.76 3.43-4.65 6.4-4.65z"
-      fill="#EA4335"
-    />
-  </svg>
-)
 
 export default function LoginPage(): JSX.Element {
   const router = useRouter()
@@ -221,15 +201,12 @@ export default function LoginPage(): JSX.Element {
                 <span className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
               </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-center gap-3 rounded-full border-slate-200 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[#8B5CF6]/60 hover:text-[#8B5CF6]"
-                disabled={isSubmitting}
-              >
-                {googleIcon}
-                Continuar con Google
-              </Button>
+              <GoogleAuthDialog
+                brandGradientClassName={brandGradient}
+                className="rounded-full"
+                flow="login"
+                redirectTo={redirectTo}
+              />
 
               <p className="text-center text-sm text-slate-600">
                 ¿No tienes cuenta?{" "}
