@@ -1,0 +1,12 @@
+import AppShell from "@/components/AppShell"
+import MapViewportWithFloatingControls from "@/components/MapViewportWithFloatingControls"
+
+export default function DashboardPage() {
+  return (
+    <AppShell>
+      <div className="relative h-full w-full">
+        <MapViewportWithFloatingControls ctaHref="/tecnicos" ctaLabel="Buscando Técnicos Cercanos" />
+      </div>
+    </AppShell>
+  )
+}
