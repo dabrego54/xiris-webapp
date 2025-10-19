@@ -358,7 +358,7 @@ export default function RegisterPage(): JSX.Element {
 
               <p className="text-center text-sm text-slate-600">
                 ¿Ya tienes cuenta?{" "}
-                <Link href="/auth/login" className="font-semibold text-[#8B5CF6] hover:underline">
+                <Link href="/login" className="font-semibold text-[#8B5CF6] hover:underline">
                   Inicia sesión
                 </Link>
               </p>

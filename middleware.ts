@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { updateSession } from '@/lib/supabase/middleware';
 
-const PUBLIC_PATHS = [/^\/$/, /^\/auth(?:\/.*)?$/, /^\/api\/public(?:\/.*)?$/];
+const PUBLIC_PATHS = [/^\/$/, /^\/(?:login|registro)(?:\/.*)?$/, /^\/api\/public(?:\/.*)?$/];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((pattern) => pattern.test(pathname));
@@ -23,7 +23,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   }
 
   if (!session) {
-    const loginUrl = new URL('/auth/login', request.url);
+    const loginUrl = new URL('/login', request.url);
     const redirectResponse = NextResponse.redirect(loginUrl);
     applyAuthCookies(response, redirectResponse);
     return redirectResponse;
@@ -33,5 +33,5 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/perfil/:path*', '/', '/auth/:path*', '/api/:path*'],
+  matcher: ['/dashboard/:path*', '/perfil/:path*', '/', '/api/:path*'],
 };
