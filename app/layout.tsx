@@ -1,4 +1,5 @@
 import type React from "react"
+import { Toaster } from "sonner"
 import type { Metadata } from "next"
 import "./globals.css"
 
@@ -14,7 +15,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es-CL">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased bg-white">
+        {children}
+        <Toaster position="top-center" richColors closeButton />
+      </body>
     </html>
   )
 }
