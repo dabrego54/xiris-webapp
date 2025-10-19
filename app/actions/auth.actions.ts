@@ -1,4 +1,4 @@
-'use server';
+"use server";
 
 import { revalidatePath } from 'next/cache';
 import { z, type ZodIssue } from 'zod';
@@ -10,6 +10,7 @@ import {
   type User,
 } from '@supabase/supabase-js';
 
+import { AUTH_REVALIDATE_PATHS } from '@/app/actions/auth.config';
 import { createClient } from '@/lib/supabase/server';
 import type { SupabaseDatabase } from '@/lib/supabase/types';
 import type {
@@ -21,8 +22,6 @@ import type {
 } from '@/types/database.types';
 
 const DEFAULT_ERROR_MESSAGE = 'Ocurrió un error inesperado. Inténtalo nuevamente.';
-export const AUTH_REVALIDATE_PATHS = ['/', '/dashboard', '/perfil'];
-
 const signUpSchema = z.object({
   email: z.string({ required_error: 'El correo es obligatorio.' }).email('Ingresa un correo válido.'),
   password: z

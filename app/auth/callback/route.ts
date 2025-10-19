@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import { AUTH_REVALIDATE_PATHS } from "@/app/actions/auth.actions"
+import { AUTH_REVALIDATE_PATHS } from "@/app/actions/auth.config"
 import { createClient } from "@/lib/supabase/server"
 import type { SupabaseDatabase } from "@/lib/supabase/types"
 import type { UserType } from "@/types/database.types"
