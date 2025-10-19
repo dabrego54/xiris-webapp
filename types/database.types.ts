@@ -60,7 +60,7 @@ export interface TechnicianProfile {
   /** Indicates whether the technician passed the verification process. */
   is_verified: boolean;
   /** Arbitrary documents used during verification. */
-  verification_documents: Record<string, any>;
+  verification_documents: Record<string, unknown>;
   /** Technician availability status for new assignments. */
   availability_status: AvailabilityStatus;
   /** Real-time coordinates when location sharing is enabled. */
