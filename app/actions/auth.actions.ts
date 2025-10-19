@@ -1,4 +1,4 @@
-'use server';
+"use server";
 
 import { revalidatePath } from 'next/cache';
 import { z, type ZodIssue } from 'zod';
@@ -10,6 +10,7 @@ import {
   type User,
 } from '@supabase/supabase-js';
 
+import { AUTH_REVALIDATE_PATHS } from '@/app/actions/auth.config';
 import { createClient } from '@/lib/supabase/server';
 import type { SupabaseDatabase } from '@/lib/supabase/types';
 import type {
@@ -17,11 +18,10 @@ import type {
   SignInData,
   SignUpData,
   UpdateProfileData,
+  UserType,
 } from '@/types/database.types';
 
 const DEFAULT_ERROR_MESSAGE = 'Ocurrió un error inesperado. Inténtalo nuevamente.';
-const AUTH_REVALIDATE_PATHS = ['/', '/dashboard', '/perfil'];
-
 const signUpSchema = z.object({
   email: z.string({ required_error: 'El correo es obligatorio.' }).email('Ingresa un correo válido.'),
   password: z
@@ -307,14 +307,32 @@ export async function signIn(email: string, password: string): Promise<ActionRes
 /**
  * Solicita a Supabase el enlace de autenticación de Google.
  */
-export async function signInWithGoogle(): Promise<ActionResult<string | null>> {
+interface GoogleOAuthParams {
+  flow: 'login' | 'register';
+  userType: UserType;
+  redirectTo?: string;
+}
+
+export async function signInWithGoogle({
+  flow,
+  userType,
+  redirectTo,
+}: GoogleOAuthParams): Promise<ActionResult<string | null>> {
   const supabase = createClient();
 
   try {
+    const callbackUrl = new URL(resolveSiteUrl('/auth/callback'));
+    callbackUrl.searchParams.set('flow', flow);
+    callbackUrl.searchParams.set('user_type', userType);
+
+    if (redirectTo) {
+      callbackUrl.searchParams.set('redirect_to', redirectTo);
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: resolveSiteUrl('/auth/callback'),
+        redirectTo: callbackUrl.toString(),
         skipBrowserRedirect: true,
       },
     });
