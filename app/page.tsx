@@ -224,10 +224,10 @@ export default function HomePage() {
                       "Pasamos de tiempos de respuesta de horas a minutos. El equipo ahora colabora con contexto y visibilidad completa."
                     </p>
                     <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand/10 text-brand">AR</span>
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand/10 text-brand">FA</span>
                       <div>
-                        <p className="font-semibold text-ink">Andrea Rivas</p>
-                        <p>Directora de Operaciones · Northwind</p>
+                        <p className="font-semibold text-ink">Fernando Abrego</p>
+                        <p>CEO · VeData</p>
                       </div>
                     </div>
                   </div>
