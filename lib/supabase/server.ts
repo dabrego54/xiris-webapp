@@ -17,14 +17,14 @@ export function createClient(): SupabaseClient<SupabaseDatabase> {
     );
   }
 
-  const cookieStore = cookies();
-
   return createServerClient<SupabaseDatabase>(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      getAll() {
+      async getAll() {
+        const cookieStore = await cookies();
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      async setAll(cookiesToSet) {
+        const cookieStore = await cookies();
         cookiesToSet.forEach((cookie) => {
           try {
             cookieStore.set(cookie);
