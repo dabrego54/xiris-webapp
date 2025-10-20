@@ -7,7 +7,7 @@ import type { SupabaseDatabase } from './types';
  * Creates a Supabase client scoped to the current request cycle for server
  * components, route handlers and server actions.
  */
-export function createClient(): SupabaseClient<SupabaseDatabase> {
+export async function createClient(): Promise<SupabaseClient<SupabaseDatabase>> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -17,14 +17,14 @@ export function createClient(): SupabaseClient<SupabaseDatabase> {
     );
   }
 
+  const cookieStore = await cookies();
+
   return createServerClient<SupabaseDatabase>(supabaseUrl, supabaseAnonKey, {
     cookies: {
-      async getAll() {
-        const cookieStore = await cookies();
+      getAll() {
         return cookieStore.getAll();
       },
-      async setAll(cookiesToSet) {
-        const cookieStore = await cookies();
+      setAll(cookiesToSet) {
         cookiesToSet.forEach((cookie) => {
           try {
             cookieStore.set(cookie);

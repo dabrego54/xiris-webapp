@@ -230,7 +230,7 @@ function revalidateAuthPaths(): void {
  * Registra un nuevo usuario en Supabase Auth y persiste metadata personalizada.
  */
 export async function signUp(data: SignUpData): Promise<ActionResult<User | null>> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const parsed = signUpSchema.parse(data);
@@ -272,7 +272,7 @@ export async function signUp(data: SignUpData): Promise<ActionResult<User | null
  * Autentica al usuario utilizando correo y contraseña.
  */
 export async function signIn(email: string, password: string): Promise<ActionResult<Session | null>> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const parsed = signInSchema.parse({ email, password } satisfies SignInData);
@@ -318,7 +318,7 @@ export async function signInWithGoogle({
   userType,
   redirectTo,
 }: GoogleOAuthParams): Promise<ActionResult<string | null>> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const callbackUrl = new URL(resolveSiteUrl('/auth/callback'));
@@ -354,7 +354,7 @@ export async function signInWithGoogle({
  * Cierra la sesión actual y limpia las cookies de autenticación.
  */
 export async function signOut(): Promise<ActionResult<boolean>> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { error } = await supabase.auth.signOut();
 
@@ -372,7 +372,7 @@ export async function signOut(): Promise<ActionResult<boolean>> {
  * Envía un correo para restablecer la contraseña del usuario.
  */
 export async function resetPassword(email: string): Promise<ActionResult<boolean>> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const parsedEmail = emailSchema.parse(email);
@@ -401,7 +401,7 @@ export async function resetPassword(email: string): Promise<ActionResult<boolean
  * Actualiza la contraseña del usuario autenticado.
  */
 export async function updatePassword(newPassword: string): Promise<ActionResult<boolean>> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const parsedPassword = passwordSchema.parse(newPassword);
@@ -431,7 +431,7 @@ export type CurrentUserResult = { user: User; profile: DatabaseProfile | null } 
  * Recupera la sesión actual junto con el perfil extendido desde la base de datos.
  */
 export async function getCurrentUser(): Promise<CurrentUserResult> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },
@@ -458,7 +458,7 @@ export async function getCurrentUser(): Promise<CurrentUserResult> {
 export async function updateProfile(
   profileData: UpdateProfileData
 ): Promise<ActionResult<DatabaseProfile | null>> {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const parsed = profileUpdateSchema.parse(profileData);
