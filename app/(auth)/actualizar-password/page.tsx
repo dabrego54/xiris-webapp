@@ -101,7 +101,7 @@ export default function UpdatePasswordPage(): JSX.Element {
           throw new Error("invalid-type")
         }
 
-        const code = params.get("code")
+        const code = params.get("code") ?? hashParams.get("code")
 
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code)
@@ -109,22 +109,42 @@ export default function UpdatePasswordPage(): JSX.Element {
           if (error) {
             throw error
           }
-        } else {
+        }
+
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+
+        if (sessionError) {
+          throw sessionError
+        }
+
+        let hasSession = Boolean(sessionData.session)
+
+        if (!hasSession) {
           const accessToken = params.get("access_token") ?? hashParams.get("access_token")
           const refreshToken = params.get("refresh_token") ?? hashParams.get("refresh_token")
 
-          if (!accessToken || !refreshToken) {
-            throw new Error("missing-tokens")
-          }
+          if (accessToken && refreshToken) {
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            })
 
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          })
+            if (error) {
+              throw error
+            }
 
-          if (error) {
-            throw error
+            const { data: refreshedSession, error: refreshedSessionError } = await supabase.auth.getSession()
+
+            if (refreshedSessionError) {
+              throw refreshedSessionError
+            }
+
+            hasSession = Boolean(refreshedSession.session)
           }
+        }
+
+        if (!hasSession) {
+          throw new Error("missing-tokens")
         }
 
         if (!isMounted) {
