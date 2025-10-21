@@ -14,10 +14,12 @@ import { AUTH_REVALIDATE_PATHS } from '@/app/actions/auth.config';
 import { createClient } from '@/lib/supabase/server';
 import type { SupabaseDatabase } from '@/lib/supabase/types';
 import type {
+  AvailabilityStatus,
   DatabaseProfile,
   SignInData,
   SignUpData,
   UpdateProfileData,
+  UserStatus,
   UserType,
 } from '@/types/database.types';
 
@@ -156,6 +158,282 @@ interface ActionResult<TData> {
 
 type SupabaseServerClient = SupabaseClient<SupabaseDatabase>;
 
+const USER_STATUS_VALUES = new Set<UserStatus>([
+  'active',
+  'inactive',
+  'suspended',
+  'pending_verification',
+]);
+
+const AVAILABILITY_STATUS_VALUES = new Set<AvailabilityStatus>(['online', 'offline', 'busy']);
+
+function toStringOrNull(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function toStringArray(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    const result = value
+      .map((item) => (typeof item === 'string' ? item.trim() : null))
+      .filter((item): item is string => Boolean(item && item.length > 0));
+
+    return result.length > 0 ? result : [];
+  }
+
+  if (typeof value === 'string') {
+    const result = value
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    return result.length > 0 ? result : [];
+  }
+
+  return undefined;
+}
+
+function toNumber(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+function toBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalised = value.toLowerCase();
+    if (normalised === 'true') {
+      return true;
+    }
+
+    if (normalised === 'false') {
+      return false;
+    }
+  }
+
+  return fallback;
+}
+
+function toRecord(value: unknown): Record<string, unknown> | undefined {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return undefined;
+}
+
+function toUserStatus(value: unknown): UserStatus {
+  if (typeof value === 'string' && USER_STATUS_VALUES.has(value as UserStatus)) {
+    return value as UserStatus;
+  }
+
+  return 'active';
+}
+
+function toAvailabilityStatus(value: unknown): AvailabilityStatus {
+  if (typeof value === 'string' && AVAILABILITY_STATUS_VALUES.has(value as AvailabilityStatus)) {
+    return value as AvailabilityStatus;
+  }
+
+  return 'offline';
+}
+
+function toLocation(
+  value: unknown,
+): { lat: number; lng: number } | null {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    const [rawLat, rawLng] = value.split(',').map((item) => item.trim());
+    const lat = Number.parseFloat(rawLat ?? '');
+    const lng = Number.parseFloat(rawLng ?? '');
+
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { lat, lng };
+    }
+
+    return null;
+  }
+
+  const record = toRecord(value);
+
+  if (!record) {
+    return null;
+  }
+
+  const lat = toNumber(record.lat, Number.NaN);
+  const lng = toNumber(record.lng, Number.NaN);
+
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return { lat, lng };
+  }
+
+  return null;
+}
+
+function buildProfileFromUser(user: User): DatabaseProfile {
+  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const createdAt = user.created_at ?? new Date().toISOString();
+  const updatedAt = user.updated_at ?? createdAt;
+
+  const fullName =
+    toStringOrNull(metadata.full_name) ??
+    toStringOrNull(metadata.fullName) ??
+    toStringOrNull(metadata.name) ??
+    toStringOrNull((user.app_metadata?.full_name as string | undefined) ?? null);
+
+  const phone =
+    toStringOrNull(metadata.phone) ??
+    toStringOrNull(metadata.phone_number) ??
+    toStringOrNull(metadata.telefono) ??
+    toStringOrNull((user.app_metadata?.phone as string | undefined) ?? null);
+
+  const avatarUrl =
+    toStringOrNull(metadata.avatar_url) ??
+    toStringOrNull(metadata.avatarUrl) ??
+    toStringOrNull(metadata.avatar) ??
+    null;
+
+  const rawUserType =
+    (metadata.user_type ?? metadata.userType ?? metadata.role ?? user.app_metadata?.user_type) as UserType | undefined;
+
+  const clientMetadata =
+    toRecord(metadata.client_profile) ??
+    toRecord(metadata.clientProfile) ??
+    toRecord(metadata.client);
+
+  const address =
+    toStringOrNull(clientMetadata?.address) ??
+    toStringOrNull(metadata.address) ??
+    null;
+
+  const preferredPaymentMethod =
+    toStringOrNull(clientMetadata?.preferred_payment_method) ??
+    toStringOrNull(metadata.preferred_payment_method) ??
+    toStringOrNull(metadata.payment_method) ??
+    toStringOrNull(metadata.paymentMethod) ??
+    null;
+
+  const totalRequests = toNumber(clientMetadata?.total_requests ?? metadata.total_requests, 0);
+
+  const technicianMetadata =
+    toRecord(metadata.technician_profile) ??
+    toRecord(metadata.technicianProfile) ??
+    toRecord(metadata.technician);
+
+  const specialties =
+    toStringArray(technicianMetadata?.specialties ?? metadata.specialties) ??
+    (rawUserType === 'tecnico' ? [] : undefined);
+  const serviceAreas =
+    toStringArray(technicianMetadata?.service_areas ?? metadata.service_areas ?? metadata.serviceAreas) ??
+    (rawUserType === 'tecnico' ? [] : undefined);
+  const rating = toNumber(technicianMetadata?.rating ?? metadata.rating, 0);
+  const totalServices = toNumber(
+    technicianMetadata?.total_services ?? metadata.total_services ?? metadata.totalServices,
+    0,
+  );
+  const isVerified = toBoolean(technicianMetadata?.is_verified ?? metadata.is_verified ?? metadata.isVerified, false);
+  const verificationDocuments =
+    (toRecord(technicianMetadata?.verification_documents ?? metadata.verification_documents) as Record<
+      string,
+      unknown
+    > | null) ?? {};
+  const availabilityStatus = toAvailabilityStatus(
+    technicianMetadata?.availability_status ?? metadata.availability_status ?? metadata.availabilityStatus,
+  );
+  const currentLocation = toLocation(
+    technicianMetadata?.current_location ??
+      metadata.current_location ??
+      metadata.location ??
+      metadata.currentLocation,
+  );
+
+  const technicianCreatedAt =
+    toStringOrNull(
+      technicianMetadata?.created_at ??
+        metadata.technician_profile_created_at ??
+        metadata.technicianCreatedAt ??
+        metadata.technician_profile_createdAt,
+    ) ?? createdAt;
+
+  const clientCreatedAt =
+    toStringOrNull(
+      clientMetadata?.created_at ??
+        metadata.client_profile_created_at ??
+        metadata.clientCreatedAt ??
+        metadata.client_profile_createdAt,
+    ) ?? createdAt;
+
+  const userType = rawUserType ?? 'cliente';
+
+  const profile: DatabaseProfile = {
+    id: user.id,
+    email: user.email ?? '',
+    full_name: fullName,
+    phone,
+    avatar_url: avatarUrl,
+    user_type: userType,
+    status: toUserStatus(metadata.status),
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
+
+  if (address !== null || preferredPaymentMethod !== null || totalRequests > 0) {
+    profile.client_profile = {
+      id: user.id,
+      address,
+      preferred_payment_method: preferredPaymentMethod,
+      total_requests: totalRequests,
+      created_at: clientCreatedAt,
+    };
+  }
+
+  const hasTechnicianData =
+    (specialties && specialties.length > 0) ||
+    (serviceAreas && serviceAreas.length > 0) ||
+    rating > 0 ||
+    totalServices > 0 ||
+    isVerified ||
+    Object.keys(verificationDocuments).length > 0 ||
+    currentLocation !== null;
+
+  if (userType === 'tecnico' || hasTechnicianData) {
+    profile.technician_profile = {
+      id: user.id,
+      specialties: specialties ?? [],
+      service_areas: serviceAreas ?? [],
+      rating,
+      total_services: totalServices,
+      is_verified: isVerified,
+      verification_documents: verificationDocuments,
+      availability_status: availabilityStatus,
+      current_location: currentLocation,
+      created_at: technicianCreatedAt,
+    };
+  }
+
+  return profile;
+}
+
 function resolveSiteUrl(path: string): string {
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
@@ -205,6 +483,11 @@ async function fetchProfile(
     .maybeSingle();
 
   if (error) {
+    if (error.code === 'PGRST205') {
+      console.warn('La tabla profiles no está disponible. Se utilizará la metadata del usuario.', error);
+      return null;
+    }
+
     console.error('No se pudo obtener el perfil.', error);
     return null;
   }
@@ -448,8 +731,9 @@ export async function getCurrentUser(): Promise<CurrentUserResult> {
   }
 
   const profile = await fetchProfile(supabase, user.id);
+  const hydratedProfile = profile ?? buildProfileFromUser(user);
 
-  return { user, profile };
+  return { user, profile: hydratedProfile };
 }
 
 /**
@@ -462,6 +746,8 @@ export async function updateProfile(
 
   try {
     const parsed = profileUpdateSchema.parse(profileData);
+    const metadataUpdates: Record<string, unknown> = {};
+    let shouldPersistMetadata = false;
 
     if (parsed.profile) {
       const { error } = await supabase
@@ -470,8 +756,28 @@ export async function updateProfile(
         .eq('id', parsed.id);
 
       if (error) {
-        console.error('Error al actualizar la tabla profiles.', error);
-        return { data: null, error: error.message };
+        if (error.code === 'PGRST205') {
+          shouldPersistMetadata = true;
+
+          if ('full_name' in parsed.profile) {
+            metadataUpdates.full_name = parsed.profile.full_name ?? null;
+          }
+
+          if ('phone' in parsed.profile) {
+            metadataUpdates.phone = parsed.profile.phone ?? null;
+          }
+
+          if ('avatar_url' in parsed.profile) {
+            metadataUpdates.avatar_url = parsed.profile.avatar_url ?? null;
+          }
+
+          if ('status' in parsed.profile && parsed.profile.status) {
+            metadataUpdates.status = parsed.profile.status;
+          }
+        } else {
+          console.error('Error al actualizar la tabla profiles.', error);
+          return { data: null, error: error.message };
+        }
       }
     }
 
@@ -481,8 +787,17 @@ export async function updateProfile(
         .upsert({ id: parsed.id, ...parsed.technician_profile }, { onConflict: 'id' });
 
       if (error) {
-        console.error('Error al actualizar la tabla technician_profiles.', error);
-        return { data: null, error: error.message };
+        if (error.code === 'PGRST205') {
+          shouldPersistMetadata = true;
+          const currentTechnicianMetadata = (metadataUpdates.technician_profile as Record<string, unknown> | undefined) ?? {};
+
+          Object.assign(currentTechnicianMetadata, parsed.technician_profile);
+          currentTechnicianMetadata.id = parsed.id;
+          metadataUpdates.technician_profile = currentTechnicianMetadata;
+        } else {
+          console.error('Error al actualizar la tabla technician_profiles.', error);
+          return { data: null, error: error.message };
+        }
       }
     }
 
@@ -492,12 +807,45 @@ export async function updateProfile(
         .upsert({ id: parsed.id, ...parsed.client_profile }, { onConflict: 'id' });
 
       if (error) {
-        console.error('Error al actualizar la tabla client_profiles.', error);
-        return { data: null, error: error.message };
+        if (error.code === 'PGRST205') {
+          shouldPersistMetadata = true;
+          const currentClientMetadata = (metadataUpdates.client_profile as Record<string, unknown> | undefined) ?? {};
+
+          Object.assign(currentClientMetadata, parsed.client_profile);
+          currentClientMetadata.id = parsed.id;
+          metadataUpdates.client_profile = currentClientMetadata;
+        } else {
+          console.error('Error al actualizar la tabla client_profiles.', error);
+          return { data: null, error: error.message };
+        }
       }
     }
 
-    const updatedProfile = await fetchProfile(supabase, parsed.id);
+    if (shouldPersistMetadata) {
+      const { error: metadataError } = await supabase.auth.updateUser({ data: metadataUpdates });
+
+      if (metadataError) {
+        console.error('Error al actualizar la metadata del usuario.', metadataError);
+        return { data: null, error: metadataError.message };
+      }
+    }
+
+    let updatedProfile = await fetchProfile(supabase, parsed.id);
+
+    if (!updatedProfile) {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        console.error('No se pudo refrescar el usuario tras actualizar el perfil.', userError);
+      }
+
+      if (user) {
+        updatedProfile = buildProfileFromUser(user);
+      }
+    }
 
     revalidateAuthPaths();
 

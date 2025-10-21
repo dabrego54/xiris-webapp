@@ -108,7 +108,22 @@ export default function ProfilePage(): JSX.Element {
         const metadata = (user.user_metadata ?? {}) as Record<string, unknown>
         const boolFromMetadata = (key: string, fallback: boolean): boolean => {
           const value = metadata[key]
-          return typeof value === "boolean" ? value : fallback
+          if (typeof value === "boolean") {
+            return value
+          }
+
+          if (typeof value === "string") {
+            const normalised = value.toLowerCase()
+            if (normalised === "true") {
+              return true
+            }
+
+            if (normalised === "false") {
+              return false
+            }
+          }
+
+          return fallback
         }
 
         const initialMetadata: MetadataPreferences = {
