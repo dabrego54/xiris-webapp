@@ -23,7 +23,14 @@ WHERE NOT EXISTS (
 
 DO $rls_buckets$
 BEGIN
-    IF has_table_privilege('storage.buckets', 'ALTER') THEN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'storage'
+          AND c.relname = 'buckets'
+          AND pg_catalog.pg_get_userbyid(c.relowner) = current_user
+    ) THEN
         EXECUTE 'ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;';
     END IF;
 END;
@@ -31,7 +38,14 @@ $rls_buckets$ LANGUAGE plpgsql;
 
 DO $rls_objects$
 BEGIN
-    IF has_table_privilege('storage.objects', 'ALTER') THEN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'storage'
+          AND c.relname = 'objects'
+          AND pg_catalog.pg_get_userbyid(c.relowner) = current_user
+    ) THEN
         EXECUTE 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;';
     END IF;
 END;
