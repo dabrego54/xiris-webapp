@@ -1,6 +1,65 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import {
+  createBrowserClient as createSsrBrowserClient,
+  createServerClient as createSsrServerClient,
+  type CookieOptions as SsrCookieOptions,
+} from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { NextRequest, NextResponse } from 'next/server';
+
+export type CookieOptions = SsrCookieOptions;
+
+type CookieRecord = { name: string; value: string; options?: CookieOptions };
+
+type CookieAdapter = {
+  get?: (name: string) => string | undefined;
+  set?: (name: string, value: string, options?: CookieOptions) => void;
+  remove?: (name: string, options?: CookieOptions) => void;
+  getAll?: () => CookieRecord[];
+  setAll?: (cookies: CookieRecord[]) => void;
+};
+
+function toCookieArray(adapter: CookieAdapter): CookieRecord[] {
+  return adapter.getAll?.() ?? [];
+}
+
+function applyCookies(adapter: CookieAdapter, cookies: CookieRecord[]): void {
+  if (adapter.setAll) {
+    adapter.setAll(cookies);
+    return;
+  }
+
+  cookies.forEach(({ name, value, options }) => {
+    if (options?.maxAge === 0) {
+      adapter.remove?.(name, options);
+    } else {
+      adapter.set?.(name, value, options);
+    }
+  });
+}
+
+export function createServerClient<Database = unknown>(
+  supabaseUrl: string,
+  supabaseAnonKey: string,
+  config: { cookies: CookieAdapter },
+): SupabaseClient<Database> {
+  return createSsrServerClient<Database>(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return toCookieArray(config.cookies);
+      },
+      setAll(cookiesToSet) {
+        applyCookies(config.cookies, cookiesToSet);
+      },
+    },
+  });
+}
+
+export function createBrowserClient<Database = unknown>(
+  supabaseUrl: string,
+  supabaseAnonKey: string,
+): SupabaseClient<Database> {
+  return createSsrBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
+}
 
 interface MiddlewareClientConfig {
   req: NextRequest;
@@ -26,14 +85,25 @@ export function createMiddlewareClient<Database = unknown>(
 
   return createServerClient<Database>(url, anonKey, {
     cookies: {
-      get(name: string) {
+      get(name) {
         return req.cookies.get(name)?.value;
       },
-      set(name: string, value: string, options?: CookieOptions) {
-        res.cookies.set(name, value, options);
+      getAll() {
+        return req.cookies.getAll().map(({ name, value }) => ({ name, value }));
       },
-      remove(name: string) {
-        res.cookies.delete(name);
+      set(name, value, options) {
+        req.cookies.set({ name, value, ...options });
+        res.cookies.set({ name, value, ...options });
+      },
+      setAll(cookies) {
+        cookies.forEach(({ name, value, options }) => {
+          req.cookies.set({ name, value, ...options });
+          res.cookies.set({ name, value, ...options });
+        });
+      },
+      remove(name, options) {
+        req.cookies.delete(name);
+        res.cookies.set({ name, value: '', ...options, maxAge: 0 });
       },
     },
   });

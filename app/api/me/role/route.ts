@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 
 import { createClient } from '@/lib/supabase/server';
 
+type ProfileRole = 'client' | 'technician' | 'admin';
+
 type RolePayload = {
-  role: string | null;
+  role: ProfileRole | null;
 };
 
 function buildResponse(payload: RolePayload, init?: ResponseInit): NextResponse<RolePayload> {
@@ -31,7 +33,7 @@ export async function GET(): Promise<NextResponse<RolePayload>> {
     return buildResponse({ role: null }, { status: 401 });
   }
 
-  type ProfileRoleRow = { role: string | null };
+  type ProfileRoleRow = { role: ProfileRole | null };
 
   const { data, error } = await supabase
     .from('profiles')
