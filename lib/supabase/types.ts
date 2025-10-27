@@ -3,6 +3,7 @@ import type { PostgrestSingleResponse } from '@supabase/supabase-js';
 import type {
   ClientProfile,
   Profile,
+  TechnicianApplication,
   TechnicianProfile,
 } from '@/types/database.types';
 
@@ -31,6 +32,28 @@ export type SupabaseDatabase = {
         Row: ClientProfile;
         Insert: WithOptional<ClientProfile, 'created_at'>;
         Update: Partial<Omit<ClientProfile, 'id'>>;
+        Relationships: [];
+      };
+      technician_applications: {
+        Row: TechnicianApplication;
+        Insert: WithOptional<
+          TechnicianApplication,
+          | 'id'
+          | 'user_id'
+          | 'full_name'
+          | 'phone'
+          | 'skills'
+          | 'experience'
+          | 'cv_url'
+          | 'certs_urls'
+          | 'status'
+          | 'reviewer_id'
+          | 'review_notes'
+          | 'reviewed_at'
+          | 'created_at'
+          | 'updated_at'
+        >;
+        Update: Partial<Omit<TechnicianApplication, 'id'>>;
         Relationships: [];
       };
     };
