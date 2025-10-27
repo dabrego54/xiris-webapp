@@ -12,7 +12,7 @@ BEGIN
         CREATE TYPE public.user_role AS ENUM ('client', 'technician', 'admin');
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Storage bucket and policies for technician documents
 INSERT INTO storage.buckets (id, name, public)
@@ -27,7 +27,7 @@ BEGIN
         EXECUTE 'ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;';
     END IF;
 END;
-$rls_buckets$;
+$rls_buckets$ LANGUAGE plpgsql;
 
 DO $rls_objects$
 BEGIN
@@ -35,7 +35,7 @@ BEGIN
         EXECUTE 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;';
     END IF;
 END;
-$rls_objects$;
+$rls_objects$ LANGUAGE plpgsql;
 
 DO $bucket_policy$
 BEGIN
@@ -55,7 +55,7 @@ BEGIN
             );
     END IF;
 END;
-$bucket_policy$;
+$bucket_policy$ LANGUAGE plpgsql;
 
 DO $policy$
 BEGIN
@@ -131,13 +131,12 @@ BEGIN
             );
     END IF;
 END;
-$policy$;
+$policy$ LANGUAGE plpgsql;
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'client';
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'technician';
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'admin';
 
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
@@ -148,7 +147,7 @@ BEGIN
         CREATE TYPE public.application_status AS ENUM ('submitted', 'under_review', 'approved', 'rejected');
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'submitted';
 ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'under_review';
 ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'approved';
@@ -205,8 +204,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger for public.profiles.updated_at
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
@@ -220,11 +218,10 @@ BEGIN
         EXECUTE FUNCTION public.set_updated_at();
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Trigger for public.technician_applications.updated_at
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
@@ -238,7 +235,7 @@ BEGIN
         EXECUTE FUNCTION public.set_updated_at();
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Automatic profile creation for new auth users
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -252,8 +249,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
@@ -267,7 +263,7 @@ BEGIN
         EXECUTE FUNCTION public.handle_new_user();
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Enable Row Level Security
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -286,8 +282,7 @@ $$
 $$ LANGUAGE sql STABLE;
 
 -- Policies for public.profiles
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'profiles_select_self'
@@ -317,11 +312,10 @@ BEGIN
             WITH CHECK (public.is_admin(auth.uid()));
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Policies for public.technician_applications
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'technician_applications' AND policyname = 'technician_applications_insert_auth'
@@ -378,4 +372,4 @@ BEGIN
             WITH CHECK (public.is_admin(auth.uid()));
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
