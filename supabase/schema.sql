@@ -1,8 +1,7 @@
 -- Enable required extension for UUID generation
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
@@ -14,6 +13,125 @@ BEGIN
     END IF;
 END;
 $$;
+
+-- Storage bucket and policies for technician documents
+INSERT INTO storage.buckets (id, name, public)
+SELECT 'tech-docs', 'tech-docs', FALSE
+WHERE NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id = 'tech-docs'
+);
+
+DO $rls_buckets$
+BEGIN
+    IF has_table_privilege('storage.buckets', 'ALTER') THEN
+        EXECUTE 'ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;';
+    END IF;
+END;
+$rls_buckets$;
+
+DO $rls_objects$
+BEGIN
+    IF has_table_privilege('storage.objects', 'ALTER') THEN
+        EXECUTE 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;';
+    END IF;
+END;
+$rls_objects$;
+
+DO $bucket_policy$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'buckets'
+          AND policyname = 'tech_docs_bucket_select_admin'
+    ) THEN
+        CREATE POLICY tech_docs_bucket_select_admin
+            ON storage.buckets
+            FOR SELECT
+            USING (
+                id = 'tech-docs'
+                AND public.is_admin(auth.uid())
+            );
+    END IF;
+END;
+$bucket_policy$;
+
+DO $policy$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'tech_docs_insert_owner_or_admin'
+    ) THEN
+        CREATE POLICY tech_docs_insert_owner_or_admin
+            ON storage.objects
+            FOR INSERT
+            WITH CHECK (
+                bucket_id = 'tech-docs'
+                AND (
+                    public.is_admin(auth.uid())
+                    OR (
+                        split_part(name, '/', 1) = 'applications'
+                        AND split_part(name, '/', 2) <> ''
+                        AND EXISTS (
+                            SELECT 1
+                            FROM public.technician_applications ta
+                            WHERE ta.id::text = split_part(name, '/', 2)
+                              AND ta.user_id = auth.uid()
+                        )
+                    )
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'tech_docs_select_owner_or_admin'
+    ) THEN
+        CREATE POLICY tech_docs_select_owner_or_admin
+            ON storage.objects
+            FOR SELECT
+            USING (
+                bucket_id = 'tech-docs'
+                AND (
+                    public.is_admin(auth.uid())
+                    OR (
+                        split_part(name, '/', 1) = 'applications'
+                        AND split_part(name, '/', 2) <> ''
+                        AND EXISTS (
+                            SELECT 1
+                            FROM public.technician_applications ta
+                            WHERE ta.id::text = split_part(name, '/', 2)
+                              AND ta.user_id = auth.uid()
+                        )
+                    )
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'tech_docs_delete_admin'
+    ) THEN
+        CREATE POLICY tech_docs_delete_admin
+            ON storage.objects
+            FOR DELETE
+            USING (
+                bucket_id = 'tech-docs'
+                AND public.is_admin(auth.uid())
+            );
+    END IF;
+END;
+$policy$;
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'client';
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'technician';
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'admin';
