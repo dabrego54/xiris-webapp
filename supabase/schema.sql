@@ -1,8 +1,7 @@
 -- Enable required extension for UUID generation
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
@@ -13,13 +12,145 @@ BEGIN
         CREATE TYPE public.user_role AS ENUM ('client', 'technician', 'admin');
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
+
+-- Storage bucket and policies for technician documents
+INSERT INTO storage.buckets (id, name, public)
+SELECT 'tech-docs', 'tech-docs', FALSE
+WHERE NOT EXISTS (
+    SELECT 1 FROM storage.buckets WHERE id = 'tech-docs'
+);
+
+DO $rls_buckets$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'storage'
+          AND c.relname = 'buckets'
+          AND pg_catalog.pg_get_userbyid(c.relowner) = current_user
+    ) THEN
+        EXECUTE 'ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;';
+    END IF;
+END;
+$rls_buckets$ LANGUAGE plpgsql;
+
+DO $rls_objects$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'storage'
+          AND c.relname = 'objects'
+          AND pg_catalog.pg_get_userbyid(c.relowner) = current_user
+    ) THEN
+        EXECUTE 'ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;';
+    END IF;
+END;
+$rls_objects$ LANGUAGE plpgsql;
+
+DO $bucket_policy$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'buckets'
+          AND policyname = 'tech_docs_bucket_select_admin'
+    ) THEN
+        CREATE POLICY tech_docs_bucket_select_admin
+            ON storage.buckets
+            FOR SELECT
+            USING (
+                id = 'tech-docs'
+                AND public.is_admin(auth.uid())
+            );
+    END IF;
+END;
+$bucket_policy$ LANGUAGE plpgsql;
+
+DO $policy$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'tech_docs_insert_owner_or_admin'
+    ) THEN
+        CREATE POLICY tech_docs_insert_owner_or_admin
+            ON storage.objects
+            FOR INSERT
+            WITH CHECK (
+                bucket_id = 'tech-docs'
+                AND (
+                    public.is_admin(auth.uid())
+                    OR (
+                        split_part(name, '/', 1) = 'applications'
+                        AND split_part(name, '/', 2) <> ''
+                        AND EXISTS (
+                            SELECT 1
+                            FROM public.technician_applications ta
+                            WHERE ta.id::text = split_part(name, '/', 2)
+                              AND ta.user_id = auth.uid()
+                        )
+                    )
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'tech_docs_select_owner_or_admin'
+    ) THEN
+        CREATE POLICY tech_docs_select_owner_or_admin
+            ON storage.objects
+            FOR SELECT
+            USING (
+                bucket_id = 'tech-docs'
+                AND (
+                    public.is_admin(auth.uid())
+                    OR (
+                        split_part(name, '/', 1) = 'applications'
+                        AND split_part(name, '/', 2) <> ''
+                        AND EXISTS (
+                            SELECT 1
+                            FROM public.technician_applications ta
+                            WHERE ta.id::text = split_part(name, '/', 2)
+                              AND ta.user_id = auth.uid()
+                        )
+                    )
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_policies
+        WHERE schemaname = 'storage'
+          AND tablename = 'objects'
+          AND policyname = 'tech_docs_delete_admin'
+    ) THEN
+        CREATE POLICY tech_docs_delete_admin
+            ON storage.objects
+            FOR DELETE
+            USING (
+                bucket_id = 'tech-docs'
+                AND public.is_admin(auth.uid())
+            );
+    END IF;
+END;
+$policy$ LANGUAGE plpgsql;
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'client';
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'technician';
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'admin';
 
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
@@ -30,7 +161,7 @@ BEGIN
         CREATE TYPE public.application_status AS ENUM ('submitted', 'under_review', 'approved', 'rejected');
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'submitted';
 ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'under_review';
 ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'approved';
@@ -87,8 +218,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger for public.profiles.updated_at
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
@@ -102,11 +232,10 @@ BEGIN
         EXECUTE FUNCTION public.set_updated_at();
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Trigger for public.technician_applications.updated_at
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
@@ -120,7 +249,7 @@ BEGIN
         EXECUTE FUNCTION public.set_updated_at();
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Automatic profile creation for new auth users
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -134,8 +263,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
@@ -149,7 +277,7 @@ BEGIN
         EXECUTE FUNCTION public.handle_new_user();
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Enable Row Level Security
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -168,8 +296,7 @@ $$
 $$ LANGUAGE sql STABLE;
 
 -- Policies for public.profiles
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'profiles_select_self'
@@ -199,11 +326,10 @@ BEGIN
             WITH CHECK (public.is_admin(auth.uid()));
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Policies for public.technician_applications
-DO
-$$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'technician_applications' AND policyname = 'technician_applications_insert_auth'
@@ -260,4 +386,4 @@ BEGIN
             WITH CHECK (public.is_admin(auth.uid()));
     END IF;
 END;
-$$;
+$$ LANGUAGE plpgsql;
