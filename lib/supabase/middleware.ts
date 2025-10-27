@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/auth-helpers-nextjs';
 import type { Session } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -33,13 +33,24 @@ export async function updateSession(request: NextRequest): Promise<UpdateSession
   const supabase = createServerClient<SupabaseDatabase>(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
-        return request.cookies.getAll();
+        return request.cookies.getAll().map(({ name, value }) => ({ name, value }));
+      },
+      get(name: string) {
+        return request.cookies.get(name)?.value;
+      },
+      set(name: string, value: string, options?: CookieOptions) {
+        request.cookies.set({ name, value, ...options });
+        response.cookies.set({ name, value, ...options });
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach((cookie) => {
-          request.cookies.set(cookie);
-          response.cookies.set(cookie);
+        cookiesToSet.forEach(({ name, value, options }) => {
+          request.cookies.set({ name, value, ...options });
+          response.cookies.set({ name, value, ...options });
         });
+      },
+      remove(name: string, options?: CookieOptions) {
+        request.cookies.delete(name);
+        response.cookies.set({ name, value: '', ...options, maxAge: 0 });
       },
     },
   });
