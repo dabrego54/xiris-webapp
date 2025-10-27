@@ -1,0 +1,263 @@
+-- Enable required extension for UUID generation
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+DO
+$$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type t
+        WHERE t.typname = 'user_role'
+          AND t.typnamespace = 'public'::regnamespace
+    ) THEN
+        CREATE TYPE public.user_role AS ENUM ('client', 'technician', 'admin');
+    END IF;
+END;
+$$;
+ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'client';
+ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'technician';
+ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'admin';
+
+DO
+$$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type t
+        WHERE t.typname = 'application_status'
+          AND t.typnamespace = 'public'::regnamespace
+    ) THEN
+        CREATE TYPE public.application_status AS ENUM ('submitted', 'under_review', 'approved', 'rejected');
+    END IF;
+END;
+$$;
+ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'submitted';
+ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'under_review';
+ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'approved';
+ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'rejected';
+
+-- Profiles table
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
+    full_name text,
+    role public.user_role NOT NULL DEFAULT 'client',
+    status text NOT NULL DEFAULT 'active',
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Technician applications table
+CREATE TABLE IF NOT EXISTS public.technician_applications (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES public.profiles (id) ON DELETE SET NULL,
+    email text NOT NULL,
+    full_name text,
+    phone text,
+    skills text[],
+    experience text,
+    cv_url text,
+    certs_urls text[],
+    status public.application_status NOT NULL DEFAULT 'submitted',
+    reviewer_id uuid REFERENCES public.profiles (id),
+    review_notes text,
+    reviewed_at timestamptz,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Audit logs table
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id bigserial PRIMARY KEY,
+    actor_id uuid REFERENCES public.profiles (id),
+    action text NOT NULL,
+    entity text NOT NULL,
+    entity_id uuid,
+    details jsonb,
+    created_at timestamptz DEFAULT now()
+);
+
+-- Updated_at trigger function
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS trigger AS
+$$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger for public.profiles.updated_at
+DO
+$$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'set_public_profiles_updated_at'
+          AND tgrelid = 'public.profiles'::regclass
+    ) THEN
+        CREATE TRIGGER set_public_profiles_updated_at
+        BEFORE UPDATE ON public.profiles
+        FOR EACH ROW
+        EXECUTE FUNCTION public.set_updated_at();
+    END IF;
+END;
+$$;
+
+-- Trigger for public.technician_applications.updated_at
+DO
+$$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'set_public_technician_applications_updated_at'
+          AND tgrelid = 'public.technician_applications'::regclass
+    ) THEN
+        CREATE TRIGGER set_public_technician_applications_updated_at
+        BEFORE UPDATE ON public.technician_applications
+        FOR EACH ROW
+        EXECUTE FUNCTION public.set_updated_at();
+    END IF;
+END;
+$$;
+
+-- Automatic profile creation for new auth users
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS
+$$
+BEGIN
+    INSERT INTO public.profiles (id, full_name)
+    VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data ->> 'full_name', NEW.email))
+    ON CONFLICT (id) DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DO
+$$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'on_auth_user_created'
+          AND tgrelid = 'auth.users'::regclass
+    ) THEN
+        CREATE TRIGGER on_auth_user_created
+        AFTER INSERT ON auth.users
+        FOR EACH ROW
+        EXECUTE FUNCTION public.handle_new_user();
+    END IF;
+END;
+$$;
+
+-- Enable Row Level Security
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.technician_applications ENABLE ROW LEVEL SECURITY;
+
+-- Helper expression to determine if current user is admin
+CREATE OR REPLACE FUNCTION public.is_admin(current_user_id uuid)
+RETURNS boolean AS
+$$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.profiles p
+        WHERE p.id = current_user_id
+          AND p.role = 'admin'
+    );
+$$ LANGUAGE sql STABLE;
+
+-- Policies for public.profiles
+DO
+$$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'profiles_select_self'
+    ) THEN
+        CREATE POLICY profiles_select_self
+            ON public.profiles
+            FOR SELECT
+            USING (auth.uid() = id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'profiles_select_admin'
+    ) THEN
+        CREATE POLICY profiles_select_admin
+            ON public.profiles
+            FOR SELECT
+            USING (public.is_admin(auth.uid()));
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'profiles' AND policyname = 'profiles_update_admin_role_status'
+    ) THEN
+        CREATE POLICY profiles_update_admin_role_status
+            ON public.profiles
+            FOR UPDATE
+            USING (public.is_admin(auth.uid()))
+            WITH CHECK (public.is_admin(auth.uid()));
+    END IF;
+END;
+$$;
+
+-- Policies for public.technician_applications
+DO
+$$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'technician_applications' AND policyname = 'technician_applications_insert_auth'
+    ) THEN
+        CREATE POLICY technician_applications_insert_auth
+            ON public.technician_applications
+            FOR INSERT
+            WITH CHECK (
+                auth.role() = 'authenticated'
+                AND (
+                    user_id IS NULL
+                    OR user_id = auth.uid()
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'technician_applications' AND policyname = 'technician_applications_select_self_or_admin'
+    ) THEN
+        CREATE POLICY technician_applications_select_self_or_admin
+            ON public.technician_applications
+            FOR SELECT
+            USING (
+                (auth.uid() IS NOT NULL AND (user_id = auth.uid() OR email = auth.email()))
+                OR public.is_admin(auth.uid())
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'technician_applications' AND policyname = 'technician_applications_update_self_submitted'
+    ) THEN
+        CREATE POLICY technician_applications_update_self_submitted
+            ON public.technician_applications
+            FOR UPDATE
+            USING (
+                auth.uid() IS NOT NULL
+                AND (user_id = auth.uid() OR email = auth.email())
+                AND status = 'submitted'
+            )
+            WITH CHECK (
+                auth.uid() IS NOT NULL
+                AND (user_id = auth.uid() OR email = auth.email())
+                AND status = 'submitted'
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'technician_applications' AND policyname = 'technician_applications_update_admin'
+    ) THEN
+        CREATE POLICY technician_applications_update_admin
+            ON public.technician_applications
+            FOR UPDATE
+            USING (public.is_admin(auth.uid()))
+            WITH CHECK (public.is_admin(auth.uid()));
+    END IF;
+END;
+$$;
