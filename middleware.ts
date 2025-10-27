@@ -1,143 +1,99 @@
-import { createServerClient, type SupabaseClient } from '@supabase/ssr';
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import type { Session } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { updateSession } from '@/lib/supabase/middleware';
 import type { SupabaseDatabase } from '@/lib/supabase/types';
-import type { UserType } from '@/types/database.types';
 
-const PUBLIC_PATHS = [
+type RoleRule = {
+  pattern: RegExp;
+  role: 'admin' | 'technician';
+};
+
+const publicRoutes: RegExp[] = [
   /^\/$/,
-  /^\/auth(?:\/.*)?$/,
+  /^\/login(?:\/.*)?$/,
+  /^\/registro(?:\/.*)?$/,
+  /^\/public(?:\/.*)?$/,
+  /^\/assets(?:\/.*)?$/,
   /^\/api\/public(?:\/.*)?$/,
-  /^\/_next(?:\/.*)?$/,
   /^\/favicon\.ico$/,
+  /^\/robots\.txt$/,
+  /^\/sitemap\.xml$/,
 ];
 
-const PROTECTED_PATHS = [/^\/dashboard(?:\/.*)?$/, /^\/perfil(?:\/.*)?$/, /^\/servicios(?:\/.*)?$/];
+const protectedRoutes: RegExp[] = [/^\/apply\/technician(?:\/.*)?$/];
 
-const DASHBOARD_TECHNICIAN_PATH = /^\/dashboard\/tecnico(?:\/.*)?$/;
-const DASHBOARD_CLIENT_PATH = /^\/dashboard\/cliente(?:\/.*)?$/;
-const DASHBOARD_ROOT_PATH = /^\/dashboard\/?$/;
+export const roleRules: RoleRule[] = [
+  { pattern: /^\/admin(\/.*)?$/, role: 'admin' },
+  { pattern: /^\/tech(\/.*)?$/, role: 'technician' },
+];
 
-/**
- * Determines if the incoming request targets a public route.
- */
-function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((pattern) => pattern.test(pathname));
+function isPublicRoute(pathname: string): boolean {
+  return publicRoutes.some((pattern) => pattern.test(pathname));
 }
 
-/**
- * Checks whether the route requires an authenticated user.
- */
-function isProtectedPath(pathname: string): boolean {
-  return PROTECTED_PATHS.some((pattern) => pattern.test(pathname));
+function requiresSession(pathname: string): boolean {
+  return protectedRoutes.some((pattern) => pattern.test(pathname));
 }
 
-/**
- * Ensures cookies set during the session refresh are preserved when
- * responding with a redirect.
- */
+function matchRoleRule(pathname: string): RoleRule | null {
+  return roleRules.find((rule) => rule.pattern.test(pathname)) ?? null;
+}
+
 function applyAuthCookies(source: NextResponse, target: NextResponse): void {
-  source.cookies.getAll().forEach((cookie) => {
-    target.cookies.set(cookie);
+  source.cookies.getAll().forEach(({ name, value }) => {
+    target.cookies.set(name, value);
   });
 }
 
-/**
- * Creates a Supabase client instance bound to the current middleware request.
- */
-function createSupabaseMiddlewareClient(
-  request: NextRequest,
-  response: NextResponse
-): SupabaseClient<SupabaseDatabase> | null {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+async function resolveUserRole(request: NextRequest, session: Session | null): Promise<string | null> {
+  const metadataRole = session?.user?.app_metadata?.role;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error(
-      'Supabase environment variables are not configured. Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.'
-    );
-    return null;
+  if (typeof metadataRole === 'string' && metadataRole.length > 0) {
+    return metadataRole;
   }
 
-  return createServerClient<SupabaseDatabase>(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
+  try {
+    const roleResponse = await fetch(new URL('/api/me/role', request.url), {
+      headers: {
+        cookie: request.headers.get('cookie') ?? '',
       },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach((cookie) => {
-          request.cookies.set(cookie);
-          response.cookies.set(cookie);
-        });
-      },
-    },
-  });
-}
+      credentials: 'include',
+    });
 
-/**
- * Fetches the authenticated user's profile to determine their role.
- */
-async function getUserType(
-  request: NextRequest,
-  response: NextResponse,
-  userId: string
-): Promise<UserType | null> {
-  const supabase = createSupabaseMiddlewareClient(request, response);
+    if (!roleResponse.ok) {
+      return null;
+    }
 
-  if (!supabase) {
+    const payload = (await roleResponse.json()) as { role?: string | null };
+    return typeof payload.role === 'string' ? payload.role : null;
+  } catch (error) {
+    console.error('Unable to fetch user role from /api/me/role.', error);
     return null;
   }
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('user_type')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (error) {
-    console.error('No se pudo obtener el tipo de usuario del perfil.', error);
-    return null;
-  }
-
-  return data?.user_type ?? null;
-}
-
-/**
- * Genera una respuesta de redirección conservando los parámetros de búsqueda.
- */
-function redirectWithSearch(
-  request: NextRequest,
-  sourceResponse: NextResponse,
-  destinationPath: string
-): NextResponse {
-  const redirectUrl = new URL(destinationPath, request.url);
-  redirectUrl.search = request.nextUrl.search;
-  const redirectResponse = NextResponse.redirect(redirectUrl);
-  applyAuthCookies(sourceResponse, redirectResponse);
-  return redirectResponse;
 }
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
-  const { response, session } = await updateSession(request);
-  const { pathname, search } = request.nextUrl;
+  const response = NextResponse.next();
+  const supabase = createMiddlewareClient<SupabaseDatabase>({ req: request, res: response });
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  if (isPublicPath(pathname)) {
-    // Usuarios autenticados que acceden a rutas públicas de autenticación son
-    // redirigidos inmediatamente a su panel principal.
-    if (session && pathname.startsWith('/auth')) {
-      return redirectWithSearch(request, response, '/dashboard');
-    }
+  const pathname = request.nextUrl.pathname;
 
+  if (isPublicRoute(pathname)) {
     return response;
   }
 
-  const requiresAuthentication = isProtectedPath(pathname);
+  const roleRule = matchRoleRule(pathname);
+  const needsAuthentication = requiresSession(pathname) || roleRule !== null;
 
-  if (requiresAuthentication && !session) {
-    const loginUrl = new URL('/auth/login', request.url);
-    const redirectPath = `${pathname}${search}`;
-    loginUrl.searchParams.set('redirect', redirectPath || '/');
+  if (!session && needsAuthentication) {
+    const loginUrl = new URL('/login', request.url);
+    const nextPath = `${pathname}${request.nextUrl.search}` || '/';
+    loginUrl.searchParams.set('next', nextPath);
+
     const redirectResponse = NextResponse.redirect(loginUrl);
     applyAuthCookies(response, redirectResponse);
     return redirectResponse;
@@ -147,33 +103,20 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return response;
   }
 
-  const needsUserTypeValidation =
-    DASHBOARD_ROOT_PATH.test(pathname) ||
-    DASHBOARD_TECHNICIAN_PATH.test(pathname) ||
-    DASHBOARD_CLIENT_PATH.test(pathname);
+  if (roleRule) {
+    const role = await resolveUserRole(request, session);
 
-  const userType = needsUserTypeValidation
-    ? await getUserType(request, response, session.user.id)
-    : null;
-
-  if (DASHBOARD_ROOT_PATH.test(pathname) && userType) {
-    const targetDashboard = userType === 'tecnico' ? '/dashboard/tecnico' : '/dashboard/cliente';
-    return redirectWithSearch(request, response, targetDashboard);
-  }
-
-  if (DASHBOARD_TECHNICIAN_PATH.test(pathname) && userType && userType !== 'tecnico') {
-    return redirectWithSearch(request, response, '/dashboard/cliente');
-  }
-
-  if (DASHBOARD_CLIENT_PATH.test(pathname) && userType && userType !== 'cliente') {
-    return redirectWithSearch(request, response, '/dashboard/tecnico');
+    if (role !== roleRule.role) {
+      const forbiddenUrl = new URL('/403', request.url);
+      const redirectResponse = NextResponse.redirect(forbiddenUrl);
+      applyAuthCookies(response, redirectResponse);
+      return redirectResponse;
+    }
   }
 
   return response;
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!_next|.*\\..*).*)'],
 };
