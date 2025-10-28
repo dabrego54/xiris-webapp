@@ -2,12 +2,6 @@
 
 import { revalidatePath } from "next/cache"
 
-import {
-  FunctionsFetchError,
-  FunctionsHttpError,
-  FunctionsRelayError,
-} from "@supabase/supabase-js"
-
 import { createClient } from "@/lib/supabase/server"
 import type { SupabaseDatabase } from "@/lib/supabase/types"
 type Decision = "approved" | "rejected"
@@ -101,25 +95,58 @@ export async function submitApplicationDecisionAction({
     }
   }
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "")
+  const configuredFunctionsUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.replace(/\/$/, "")
+  const functionsBaseUrl = configuredFunctionsUrl ?? (supabaseUrl ? `${supabaseUrl}/functions/v1` : undefined)
+
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!functionsBaseUrl || !anonKey) {
+    console.error("Missing Supabase function configuration", {
+      hasFunctionsUrl: Boolean(functionsBaseUrl),
+      hasAnonKey: Boolean(anonKey),
+    })
+    return {
+      success: false,
+      message: "No pudimos contactar el servicio de aprobación. Falta configuración.",
+    }
+  }
+
+  const functionUrl = `${functionsBaseUrl.replace(/\/$/, "")}/approveApplication`
   const trimmedNotes = reviewNotes?.trim()
 
-  const { error: functionError } = await supabase.functions.invoke<{ ok: boolean }>(
-    "approveApplication",
-    {
-      body: {
-        applicationId,
-        decision,
-        reviewNotes: trimmedNotes ? trimmedNotes : undefined,
-      },
+  let functionResponse: Response
+
+  try {
+    functionResponse = await fetch(functionUrl, {
+      method: "POST",
       headers: {
+        "Content-Type": "application/json",
+        apikey: anonKey,
         Authorization: `Bearer ${accessToken}`,
         "x-reviewer-id": user.id,
       },
-    },
-  )
+      body: JSON.stringify({
+        applicationId,
+        decision,
+        reviewNotes: trimmedNotes ? trimmedNotes : undefined,
+      }),
+      cache: "no-store",
+    })
+  } catch (networkError) {
+    console.error("Network error invoking approveApplication", networkError)
+    return {
+      success: false,
+      message: "No pudimos contactar el servicio de aprobación. Intenta nuevamente.",
+    }
+  }
 
-  if (functionError) {
-    console.error("Error invoking approveApplication function", functionError)
+  if (!functionResponse.ok) {
+    console.error("approveApplication responded with error", {
+      status: functionResponse.status,
+      statusText: functionResponse.statusText,
+    })
 
     const defaultMessage = "No pudimos procesar la decisión. Intenta nuevamente."
     let message = defaultMessage
@@ -131,41 +158,27 @@ export async function submitApplicationDecisionAction({
       "Failed to authenticate user": "No pudimos autenticar tu sesión. Vuelve a iniciar sesión e inténtalo otra vez.",
       "Missing or invalid Authorization header":
         "Tu sesión expiró o es inválida. Vuelve a iniciar sesión e inténtalo nuevamente.",
+      "Missing access token": "Tu sesión expiró o es inválida. Vuelve a iniciar sesión e inténtalo nuevamente.",
+      "Missing x-reviewer-id header for service invocation":
+        "Falta información del revisor para completar la acción.",
       "Function not found":
         "No pudimos contactar el servicio de aprobación. Verifica la configuración del proyecto.",
     }
 
-    if (functionError instanceof FunctionsHttpError) {
-      const response = functionError.context?.response
+    if (functionResponse.status === 404) {
+      message = friendlyMessages["Function not found"] ?? defaultMessage
+    }
 
-      if (response?.status === 404) {
-        message = friendlyMessages["Function not found"] ?? defaultMessage
-      }
-
-      if (response) {
-        try {
-          const contentType = response.headers.get("content-type") ?? ""
-          if (contentType.includes("application/json")) {
-            const details = (await response.clone().json()) as { error?: string }
-            if (details?.error) {
-              message =
-                friendlyMessages[details.error] ?? `No pudimos completar la acción: ${details.error}`
-            }
-          }
-        } catch (parseError) {
-          console.error("Unable to parse approveApplication error response", parseError)
+    const contentType = functionResponse.headers.get("content-type") ?? ""
+    if (contentType.includes("application/json")) {
+      try {
+        const details = (await functionResponse.json()) as { error?: string }
+        if (details?.error) {
+          message = friendlyMessages[details.error] ?? `No pudimos completar la acción: ${details.error}`
         }
+      } catch (parseError) {
+        console.error("Unable to parse approveApplication error response", parseError)
       }
-    } else if (functionError instanceof FunctionsRelayError) {
-      message =
-        friendlyMessages[functionError.message] ??
-        "El servicio de aprobación no está disponible. Inténtalo nuevamente en unos minutos."
-    } else if (functionError instanceof FunctionsFetchError) {
-      message =
-        friendlyMessages[functionError.message] ??
-        "No pudimos contactar el servicio de aprobación. Revisa tu conexión e inténtalo otra vez."
-    } else if (functionError.message) {
-      message = friendlyMessages[functionError.message] ?? defaultMessage
     }
 
     return {
