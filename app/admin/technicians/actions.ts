@@ -86,6 +86,21 @@ export async function submitApplicationDecisionAction({
     }
   }
 
+  const {
+    data: sessionData,
+    error: sessionError,
+  } = await supabase.auth.getSession()
+
+  const accessToken = sessionData?.session?.access_token
+
+  if (sessionError || !accessToken) {
+    console.error("Error retrieving access token before invoking approveApplication", sessionError)
+    return {
+      success: false,
+      message: "No se pudo autenticar la sesión del administrador.",
+    }
+  }
+
   const trimmedNotes = reviewNotes?.trim()
 
   const { error: functionError } = await supabase.functions.invoke<{ ok: boolean }>(
@@ -97,6 +112,7 @@ export async function submitApplicationDecisionAction({
         reviewNotes: trimmedNotes ? trimmedNotes : undefined,
       },
       headers: {
+        Authorization: `Bearer ${accessToken}`,
         "x-reviewer-id": user.id,
       },
     },
@@ -120,13 +136,25 @@ export async function submitApplicationDecisionAction({
     }
 
     if (functionError instanceof FunctionsHttpError) {
-      try {
-        const details = (await functionError.context.response.json()) as { error?: string }
-        if (details?.error) {
-          message = friendlyMessages[details.error] ?? `No pudimos completar la acción: ${details.error}`
+      const response = functionError.context?.response
+
+      if (response?.status === 404) {
+        message = friendlyMessages["Function not found"] ?? defaultMessage
+      }
+
+      if (response) {
+        try {
+          const contentType = response.headers.get("content-type") ?? ""
+          if (contentType.includes("application/json")) {
+            const details = (await response.clone().json()) as { error?: string }
+            if (details?.error) {
+              message =
+                friendlyMessages[details.error] ?? `No pudimos completar la acción: ${details.error}`
+            }
+          }
+        } catch (parseError) {
+          console.error("Unable to parse approveApplication error response", parseError)
         }
-      } catch (parseError) {
-        console.error("Unable to parse approveApplication error response", parseError)
       }
     } else if (functionError instanceof FunctionsRelayError) {
       message =
