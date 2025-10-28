@@ -89,6 +89,30 @@ export async function submitApplicationDecision({
     }
   }
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  const headers: Record<string, string> = {}
+  const adminServiceSecret = process.env.ADMIN_SERVICE_SECRET
+
+  if (adminServiceSecret) {
+    headers["x-admin-service"] = adminServiceSecret
+    headers["x-reviewer-id"] = user.id
+  }
+
+  if (session?.access_token) {
+    headers.Authorization = `Bearer ${session.access_token}`
+  }
+
+  if (Object.keys(headers).length === 0) {
+    console.error("No se encontró un método de autenticación para la función de aprobación.")
+    return {
+      success: false,
+      error: "No pudimos autenticar tu sesión para registrar la decisión.",
+    }
+  }
+
   const { error } = await supabase.functions.invoke(
     "approveApplication",
     {
@@ -97,6 +121,7 @@ export async function submitApplicationDecision({
         decision,
         reviewNotes: trimmedNotes.length > 0 ? trimmedNotes : undefined,
       },
+      headers,
     }
   )
 

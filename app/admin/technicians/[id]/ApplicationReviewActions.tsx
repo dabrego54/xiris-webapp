@@ -112,12 +112,13 @@ export function ApplicationReviewActions({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
       <Button
         type="button"
-        variant="outline"
+        variant="secondary"
         disabled={!isSubmitted || isPending}
         onClick={handleMoveToUnderReview}
+        className="h-11 rounded-full px-6"
       >
         Mover a Under Review
       </Button>
@@ -127,6 +128,7 @@ export function ApplicationReviewActions({
         variant="default"
         disabled={isFinalized || !isUnderReview || isPending}
         onClick={() => openDecisionDialog("approved")}
+        className="h-11 rounded-full px-6"
       >
         Aprobar
       </Button>
@@ -136,6 +138,7 @@ export function ApplicationReviewActions({
         variant="destructive"
         disabled={isFinalized || !isUnderReview || isPending}
         onClick={() => openDecisionDialog("rejected")}
+        className="h-11 rounded-full px-6"
       >
         Rechazar
       </Button>
@@ -153,7 +156,7 @@ export function ApplicationReviewActions({
             </label>
             <textarea
               id="review-notes"
-              className="h-32 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/60"
+              className="h-32 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/60"
               value={reviewNotes}
               onChange={(event) => setReviewNotes(event.target.value)}
               placeholder="Escribe un resumen de tu evaluación"
