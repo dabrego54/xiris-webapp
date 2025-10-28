@@ -2,7 +2,14 @@
 
 import { revalidatePath } from "next/cache"
 
+import {
+  FunctionsFetchError,
+  FunctionsHttpError,
+  FunctionsRelayError,
+} from "@supabase/supabase-js"
+
 import { createClient } from "@/lib/supabase/server"
+import type { SupabaseDatabase } from "@/lib/supabase/types"
 type Decision = "approved" | "rejected"
 
 type ActionResult = {
@@ -27,13 +34,15 @@ export async function moveToUnderReviewAction(applicationId: string): Promise<Ac
     }
   }
 
+  const updatePayload: SupabaseDatabase["public"]["Tables"]["technician_applications"]["Update"] = {
+    status: "under_review",
+    reviewer_id: user.id,
+    review_notes: null,
+  }
+
   const { error } = await supabase
     .from("technician_applications")
-    .update({
-      status: "under_review",
-      reviewer_id: user.id,
-      review_notes: null,
-    })
+    .update(updatePayload)
     .eq("id", applicationId)
 
   if (error) {
@@ -77,90 +86,60 @@ export async function submitApplicationDecisionAction({
     }
   }
 
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession()
+  const trimmedNotes = reviewNotes?.trim()
 
-  if (sessionError || !session?.access_token) {
-    console.error("Error retrieving session before invoking approveApplication", sessionError)
-    return {
-      success: false,
-      message: "No se pudo obtener la sesión del administrador.",
-    }
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("Missing Supabase configuration for Edge Function invocation", {
-      supabaseUrlPresent: Boolean(supabaseUrl),
-      supabaseAnonKeyPresent: Boolean(supabaseAnonKey),
-    })
-    return {
-      success: false,
-      message: "Configuración inválida del proyecto. Contacta al equipo técnico.",
-    }
-  }
-
-  let response: Response
-
-  try {
-    response = await fetch(`${supabaseUrl}/functions/v1/approveApplication`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${session.access_token}`,
-        "x-reviewer-id": user.id,
-      },
-      body: JSON.stringify({
+  const { error: functionError } = await supabase.functions.invoke<{ ok: boolean }>(
+    "approveApplication",
+    {
+      body: {
         applicationId,
         decision,
-        reviewNotes: reviewNotes?.trim() || undefined,
-      }),
-    })
-  } catch (invokeError) {
-    console.error("Network error invoking approveApplication function", invokeError)
-    let message = "No pudimos procesar la decisión. Intenta nuevamente."
+        reviewNotes: trimmedNotes ? trimmedNotes : undefined,
+      },
+      headers: {
+        "x-reviewer-id": user.id,
+      },
+    },
+  )
 
-    return {
-      success: false,
-      message,
+  if (functionError) {
+    console.error("Error invoking approveApplication function", functionError)
+
+    const defaultMessage = "No pudimos procesar la decisión. Intenta nuevamente."
+    let message = defaultMessage
+
+    const friendlyMessages: Record<string, string> = {
+      "Application not found": "No encontramos la postulación solicitada.",
+      "Reviewer is not authorized": "Tu cuenta no tiene permisos para aprobar postulaciones.",
+      "Authentication failed": "No pudimos autenticar tu sesión. Vuelve a iniciar sesión e inténtalo otra vez.",
+      "Failed to authenticate user": "No pudimos autenticar tu sesión. Vuelve a iniciar sesión e inténtalo otra vez.",
+      "Missing or invalid Authorization header":
+        "Tu sesión expiró o es inválida. Vuelve a iniciar sesión e inténtalo nuevamente.",
+      "Function not found":
+        "No pudimos contactar el servicio de aprobación. Verifica la configuración del proyecto.",
     }
-  }
 
-  if (!response.ok) {
-    let message = "No pudimos procesar la decisión. Intenta nuevamente."
-
-    try {
-      const details = (await response.json()) as { error?: string }
-
-      if (details?.error) {
-        const friendlyMessages: Record<string, string> = {
-          "Application not found": "No encontramos la postulación solicitada.",
-          "Reviewer is not authorized": "Tu cuenta no tiene permisos para aprobar postulaciones.",
-          "Authentication failed": "No pudimos autenticar tu sesión. Vuelve a iniciar sesión e inténtalo otra vez.",
-          "Failed to authenticate user": "No pudimos autenticar tu sesión. Vuelve a iniciar sesión e inténtalo otra vez.",
-          "Missing or invalid Authorization header":
-            "Tu sesión expiró o es inválida. Vuelve a iniciar sesión e inténtalo nuevamente.",
-          "Function not found":
-            "No pudimos contactar el servicio de aprobación. Verifica la configuración del proyecto.",
+    if (functionError instanceof FunctionsHttpError) {
+      try {
+        const details = (await functionError.context.response.json()) as { error?: string }
+        if (details?.error) {
+          message = friendlyMessages[details.error] ?? `No pudimos completar la acción: ${details.error}`
         }
-
-        message =
-          friendlyMessages[details.error] ??
-          "No pudimos completar la acción: " + details.error
+      } catch (parseError) {
+        console.error("Unable to parse approveApplication error response", parseError)
       }
-    } catch (parseError) {
-      console.error("Unable to parse approveApplication error response", parseError)
+    } else if (functionError instanceof FunctionsRelayError) {
+      message =
+        friendlyMessages[functionError.message] ??
+        "El servicio de aprobación no está disponible. Inténtalo nuevamente en unos minutos."
+    } else if (functionError instanceof FunctionsFetchError) {
+      message =
+        friendlyMessages[functionError.message] ??
+        "No pudimos contactar el servicio de aprobación. Revisa tu conexión e inténtalo otra vez."
+    } else if (functionError.message) {
+      message = friendlyMessages[functionError.message] ?? defaultMessage
     }
 
-    console.error("approveApplication responded with error", {
-      status: response.status,
-      statusText: response.statusText,
-    })
     return {
       success: false,
       message,
