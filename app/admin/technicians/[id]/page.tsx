@@ -14,7 +14,6 @@ type DocumentLink = {
 
 type Reviewer = {
   full_name: string | null
-  email: string
 }
 
 function formatDate(value: string | null): string {
@@ -44,14 +43,20 @@ function buildStatusBadge(status: ApplicationStatus): { label: string; className
 export default async function TechnicianApplicationDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }> | { id: string }
 }) {
   const supabase = await createClient()
+
+  const resolvedParams = ((await params) ?? { id: "" }) as { id: string }
+
+  if (!resolvedParams?.id) {
+    notFound()
+  }
 
   const { data: application, error } = await supabase
     .from("technician_applications")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", resolvedParams.id)
     .maybeSingle()
 
   if (error) {
@@ -67,7 +72,7 @@ export default async function TechnicianApplicationDetailPage({
   if (application.reviewer_id) {
     const { data: reviewerData, error: reviewerError } = await supabase
       .from("profiles")
-      .select("full_name, email")
+      .select("full_name")
       .eq("id", application.reviewer_id)
       .maybeSingle()
 
@@ -178,7 +183,9 @@ export default async function TechnicianApplicationDetailPage({
             <div className="space-y-2 text-sm text-slate-700">
               <p>
                 <span className="font-medium text-slate-900">Revisor asignado:</span>{" "}
-                {reviewer ? reviewer.full_name || reviewer.email : "Sin asignar"}
+                {reviewer
+                  ? reviewer.full_name || application.reviewer_id
+                  : "Sin asignar"}
               </p>
               <p>
                 <span className="font-medium text-slate-900">Última decisión:</span>{" "}

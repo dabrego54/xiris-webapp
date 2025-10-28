@@ -57,19 +57,21 @@ function buildStatusBadge(status: ApplicationStatus): { label: string; className
 export default async function AdminTechniciansPage({
   searchParams,
 }: {
-  searchParams?: SearchParams
+  searchParams?: Promise<SearchParams> | SearchParams
 }) {
   const supabase = await createClient()
 
-  const statusParam = Array.isArray(searchParams?.status)
-    ? searchParams?.status[0]
-    : searchParams?.status
-  const queryParam = Array.isArray(searchParams?.query)
-    ? searchParams?.query[0]
-    : searchParams?.query
-  const pageParam = Array.isArray(searchParams?.page)
-    ? searchParams?.page[0]
-    : searchParams?.page
+  const resolvedSearchParams = ((await searchParams) ?? {}) as SearchParams
+
+  const statusParam = Array.isArray(resolvedSearchParams.status)
+    ? resolvedSearchParams.status[0]
+    : resolvedSearchParams.status
+  const queryParam = Array.isArray(resolvedSearchParams.query)
+    ? resolvedSearchParams.query[0]
+    : resolvedSearchParams.query
+  const pageParam = Array.isArray(resolvedSearchParams.page)
+    ? resolvedSearchParams.page[0]
+    : resolvedSearchParams.page
 
   const activeStatus = isApplicationStatus(statusParam) ? statusParam : undefined
   const query = typeof queryParam === "string" ? queryParam.trim() : ""
