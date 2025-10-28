@@ -26,7 +26,11 @@ export function getSupabaseBrowserClient(): SupabaseClient<SupabaseDatabase> {
     );
   }
 
-  browserClient = createBrowserClient<SupabaseDatabase>(supabaseUrl, supabaseAnonKey);
+  const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.replace(/\/$/, "");
+
+  browserClient = createBrowserClient<SupabaseDatabase>(supabaseUrl, supabaseAnonKey, {
+    ...(functionsUrl ? { functions: { url: functionsUrl } } : {}),
+  });
 
   return browserClient;
 }

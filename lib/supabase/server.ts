@@ -19,8 +19,10 @@ export async function createClient(): Promise<SupabaseClient<SupabaseDatabase>> 
   }
 
   const cookieStore = await cookies();
+  const functionsUrl = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?.replace(/\/$/, "");
 
   return createServerClient<SupabaseDatabase>(supabaseUrl, supabaseAnonKey, {
+    ...(functionsUrl ? { functions: { url: functionsUrl } } : {}),
     cookies: {
       getAll() {
         return cookieStore.getAll().map(({ name, value }) => ({ name, value }));
