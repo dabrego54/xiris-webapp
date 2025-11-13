@@ -67,7 +67,7 @@ export default async function TechDashboardPage() {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('full_name, email, role')
+    .select('full_name, role')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -79,7 +79,7 @@ export default async function TechDashboardPage() {
     redirect('/dashboard');
   }
 
-  const displayName = profile.full_name?.trim() || profile.email || user.email || 'técnico';
+  const displayName = profile.full_name?.trim() || user.email || 'técnico';
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50">
