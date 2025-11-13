@@ -65,17 +65,21 @@ export default async function TechDashboardPage() {
     redirect('/login?next=/tech/dashboard');
   }
 
-  const { data: profile, error } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('full_name, email')
+    .select('full_name, email, role')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (error) {
-    console.error('Error fetching technician profile', error);
+  if (profileError || !profile) {
+    redirect('/dashboard');
   }
 
-  const displayName = profile?.full_name?.trim() || profile?.email || user.email || 'técnico';
+  if (profile.role !== 'technician') {
+    redirect('/dashboard');
+  }
+
+  const displayName = profile.full_name?.trim() || profile.email || user.email || 'técnico';
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50">
