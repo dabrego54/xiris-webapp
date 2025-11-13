@@ -75,7 +75,7 @@ export default async function TechDashboardPage() {
     redirect('/dashboard');
   }
 
-  if (profile.role !== 'technician') {
+  if (profile.role?.trim().toLowerCase() !== 'technician') {
     redirect('/dashboard');
   }
 
