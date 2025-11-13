@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Briefcase, Search, MessageCircle, User } from "lucide-react"
+import { Home, Briefcase, Search, MessageCircle, User, Wrench } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -14,6 +14,7 @@ const navItems = [
   { icon: Search, label: "Buscar", href: "/tecnicos" },
   { icon: MessageCircle, label: "Chat", href: "/chat/1" },
   { icon: User, label: "Perfil", href: "/perfil" },
+  { icon: Wrench, label: "Panel técnico", href: "/tech/dashboard" },
 ]
 
 export default function Nav({ variant }: NavProps) {
