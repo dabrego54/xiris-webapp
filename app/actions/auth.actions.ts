@@ -131,7 +131,7 @@ const profileUpdateSchema = z
     }
   });
 
-const PROFILE_SELECT = `
+const PROFILE_COLUMNS = `
   id,
   email,
   full_name,
@@ -140,9 +140,7 @@ const PROFILE_SELECT = `
   user_type,
   status,
   created_at,
-  updated_at,
-  technician_profile:technician_profiles(*),
-  client_profile:client_profiles(*)
+  updated_at
 `;
 
 const FAILURE_MESSAGES: Record<string, string> = {
@@ -478,7 +476,7 @@ async function fetchProfile(
 ): Promise<DatabaseProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select(PROFILE_SELECT)
+    .select(PROFILE_COLUMNS)
     .eq('id', profileId)
     .maybeSingle();
 
@@ -496,10 +494,26 @@ async function fetchProfile(
     return null;
   }
 
+  const [
+    { data: technicianProfile, error: technicianError },
+    { data: clientProfile, error: clientError },
+  ] = await Promise.all([
+    supabase.from('technician_profiles').select('*').eq('id', profileId).maybeSingle(),
+    supabase.from('client_profiles').select('*').eq('id', profileId).maybeSingle(),
+  ]);
+
+  if (technicianError && technicianError.code !== 'PGRST116') {
+    console.error('No se pudo obtener el perfil de técnico relacionado.', technicianError);
+  }
+
+  if (clientError && clientError.code !== 'PGRST116') {
+    console.error('No se pudo obtener el perfil de cliente relacionado.', clientError);
+  }
+
   return {
     ...data,
-    technician_profile: data.technician_profile ?? undefined,
-    client_profile: data.client_profile ?? undefined,
+    technician_profile: technicianError ? undefined : technicianProfile ?? undefined,
+    client_profile: clientError ? undefined : clientProfile ?? undefined,
   } satisfies DatabaseProfile;
 }
 

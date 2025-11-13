@@ -8,7 +8,7 @@ interface AuthOperationResult {
   error: string | null;
 }
 
-const PROFILE_SELECT = `
+const PROFILE_COLUMNS = `
   id,
   email,
   full_name,
@@ -17,9 +17,7 @@ const PROFILE_SELECT = `
   user_type,
   status,
   created_at,
-  updated_at,
-  technician_profile:technician_profiles(*),
-  client_profile:client_profiles(*)
+  updated_at
 `;
 
 /**
@@ -49,7 +47,7 @@ export function useAuth() {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select(PROFILE_SELECT)
+        .select(PROFILE_COLUMNS)
         .eq('id', profileId)
         .maybeSingle<DatabaseProfile>();
 
@@ -58,8 +56,35 @@ export function useAuth() {
         return null;
       }
 
-      profileCacheRef.current.set(profileId, data ?? null);
-      return data ?? null;
+      if (!data) {
+        profileCacheRef.current.set(profileId, null);
+        return null;
+      }
+
+      const [
+        { data: technicianProfile, error: technicianError },
+        { data: clientProfile, error: clientError },
+      ] = await Promise.all([
+        supabase.from('technician_profiles').select('*').eq('id', profileId).maybeSingle(),
+        supabase.from('client_profiles').select('*').eq('id', profileId).maybeSingle(),
+      ]);
+
+      if (technicianError && technicianError.code !== 'PGRST116') {
+        console.error('No se pudo obtener el perfil de técnico relacionado.', technicianError);
+      }
+
+      if (clientError && clientError.code !== 'PGRST116') {
+        console.error('No se pudo obtener el perfil de cliente relacionado.', clientError);
+      }
+
+      const hydratedProfile: DatabaseProfile = {
+        ...data,
+        technician_profile: technicianError ? undefined : technicianProfile ?? undefined,
+        client_profile: clientError ? undefined : clientProfile ?? undefined,
+      };
+
+      profileCacheRef.current.set(profileId, hydratedProfile);
+      return hydratedProfile;
     },
     [supabase]
   );
