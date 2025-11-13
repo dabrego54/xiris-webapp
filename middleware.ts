@@ -25,6 +25,7 @@ const protectedRoutes: RegExp[] = [/^\/apply\/technician(?:\/.*)?$/];
 
 export const roleRules: RoleRule[] = [
   { pattern: /^\/admin(\/.*)?$/, role: 'admin' },
+  { pattern: /^\/api\/admin(\/.*)?$/, role: 'admin' },
   { pattern: /^\/tech(\/.*)?$/, role: 'technician' },
 ];
 
