@@ -3,6 +3,8 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/server';
+import { AvailabilityToggle } from './availability-toggle';
+import type { TechnicianPresenceStatus } from '@/types/database.types';
 import {
   ArrowUpRight,
   BadgeCheck,
@@ -81,6 +83,25 @@ export default async function TechDashboardPage() {
 
   const displayName = profile.full_name?.trim() || user.email || 'técnico';
 
+  type TechnicianStatusRow = {
+    is_online: boolean;
+    current_status: TechnicianPresenceStatus;
+  };
+
+  const { data: statusRow } = await supabase
+    .from('technician_status')
+    .select('is_online, current_status')
+    .eq('technician_id', user.id)
+    .returns<TechnicianStatusRow>()
+    .maybeSingle();
+
+  const isOnline = statusRow?.is_online ?? false;
+  const currentStatus = statusRow?.current_status ?? 'offline';
+  const statusBadgeClass = isOnline
+    ? 'bg-emerald-100 text-emerald-700'
+    : 'bg-slate-200 text-slate-700';
+  const statusBadgeLabel = isOnline ? 'Activo' : 'Offline';
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50">
       <div className="mx-auto max-w-4xl px-4 py-10">
@@ -99,14 +120,17 @@ export default async function TechDashboardPage() {
                   <BadgeCheck className="h-5 w-5 text-emerald-500" aria-hidden />
                   <h2 className="text-lg font-semibold text-slate-900">Estado del Técnico</h2>
                 </div>
-                <p className="mt-3 text-2xl font-semibold text-slate-900">Listo para recibir tickets</p>
+                <p className="mt-3 text-2xl font-semibold text-slate-900">Administra tu disponibilidad</p>
                 <p className="mt-2 text-sm text-slate-600">
-                  Tu cuenta está aprobada. Puedes comenzar a recibir solicitudes de soporte.
+                  Comparte tu ubicación cuando estés disponible para recibir tickets y pasa a offline cuando necesites un descanso.
                 </p>
               </div>
-              <span className="inline-flex items-center rounded-full bg-emerald-100 px-4 py-1 text-sm font-medium text-emerald-700">
-                Activo
+              <span className={`inline-flex items-center rounded-full px-4 py-1 text-sm font-medium ${statusBadgeClass}`}>
+                {statusBadgeLabel}
               </span>
+            </div>
+            <div className="mt-6">
+              <AvailabilityToggle initialStatus={currentStatus} />
             </div>
           </section>
 
