@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { matchRequest } from '@/lib/matchmaking/matchRequest';
+import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
@@ -20,7 +21,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Se requiere el ID de la solicitud.' }, { status: 400 });
     }
 
-    const { data: serviceRequest, error: serviceRequestError } = await supabase
+    const serviceRoleClient = getSupabaseServiceRoleClient();
+
+    const { data: serviceRequest, error: serviceRequestError } = await serviceRoleClient
       .from('service_requests')
       .select('id, client_id')
       .eq('id', payload.serviceRequestId)
@@ -35,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Solicitud no encontrada.' }, { status: 404 });
     }
 
-    const { data: pendingOffer, error: offerError } = await supabase
+    const { data: pendingOffer, error: offerError } = await serviceRoleClient
       .from('service_request_offers')
       .select('id, technician_id')
       .eq('service_request_id', payload.serviceRequestId)
@@ -53,7 +56,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No hay un técnico pendiente de rechazar.' }, { status: 400 });
     }
 
-    const { error: rejectError } = await supabase
+    const { error: rejectError } = await serviceRoleClient
       .from('service_request_offers')
       .update({ status: 'rejected' })
       .eq('id', pendingOffer.id);
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No se pudo rechazar al técnico.' }, { status: 500 });
     }
 
-    const { data: offerHistory, error: historyError } = await supabase
+    const { data: offerHistory, error: historyError } = await serviceRoleClient
       .from('service_request_offers')
       .select('technician_id')
       .eq('service_request_id', payload.serviceRequestId);
@@ -75,7 +78,7 @@ export async function POST(request: Request) {
 
     const excludeTechnicians = offerHistory?.map((offer) => offer.technician_id) ?? [];
 
-    await matchRequest(supabase, payload.serviceRequestId, { excludeTechnicians });
+    await matchRequest(serviceRoleClient, payload.serviceRequestId, { excludeTechnicians });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

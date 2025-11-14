@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { matchRequest } from '@/lib/matchmaking/matchRequest';
+import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: Request) {
@@ -30,7 +31,9 @@ export async function POST(request: Request) {
         ? payload.problemDescription
         : 'Problema reportado desde el dashboard';
 
-    const { data, error } = await supabase
+    const serviceRoleClient = getSupabaseServiceRoleClient();
+
+    const { data, error } = await serviceRoleClient
       .from('service_requests')
       .insert({
         client_id: user.id,
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No se pudo crear la solicitud.' }, { status: 500 });
     }
 
-    await matchRequest(supabase, data.id);
+    await matchRequest(serviceRoleClient, data.id);
 
     return NextResponse.json({ ok: true, serviceRequestId: data.id });
   } catch (error) {

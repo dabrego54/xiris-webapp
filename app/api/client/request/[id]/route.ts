@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import { createClient } from '@/lib/supabase/server';
 import type { ServiceRequestStatus } from '@/types/database.types';
 
@@ -70,8 +71,9 @@ export async function GET(
     }
 
     const serviceRequestId = params.id;
+    const serviceRoleClient = getSupabaseServiceRoleClient();
 
-    const { data: serviceRequest, error: serviceRequestError } = await supabase
+    const { data: serviceRequest, error: serviceRequestError } = await serviceRoleClient
       .from('service_requests')
       .select('id, client_id, status, location_lat, location_lng')
       .eq('id', serviceRequestId)
@@ -86,7 +88,7 @@ export async function GET(
       return NextResponse.json({ error: 'Solicitud no encontrada.' }, { status: 404 });
     }
 
-    const { data: offer } = await supabase
+    const { data: offer } = await serviceRoleClient
       .from('service_request_offers')
       .select('id, technician_id, status')
       .eq('service_request_id', serviceRequestId)
@@ -104,17 +106,17 @@ export async function GET(
     }
 
     const [profileResponse, technicianProfileResponse, technicianStatusResponse] = await Promise.all([
-      supabase
+      serviceRoleClient
         .from('profiles')
         .select('id, full_name')
         .eq('id', offer.technician_id)
         .maybeSingle(),
-      supabase
+      serviceRoleClient
         .from('technician_profiles')
         .select('specialties, rating, total_services')
         .eq('id', offer.technician_id)
         .maybeSingle(),
-      supabase
+      serviceRoleClient
         .from('technician_status')
         .select('current_lat, current_lng')
         .eq('technician_id', offer.technician_id)
