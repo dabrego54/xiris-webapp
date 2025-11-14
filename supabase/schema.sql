@@ -14,6 +14,246 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Service matchmaking tables
+CREATE TABLE IF NOT EXISTS public.service_requests (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id uuid NOT NULL REFERENCES public.profiles (id) ON DELETE CASCADE,
+    assigned_technician_id uuid REFERENCES public.profiles (id) ON DELETE SET NULL,
+    status text NOT NULL DEFAULT 'requested',
+    problem_description text,
+    location_lat double precision,
+    location_lng double precision,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.technician_status (
+    technician_id uuid PRIMARY KEY REFERENCES public.profiles (id) ON DELETE CASCADE,
+    is_online boolean NOT NULL DEFAULT false,
+    current_status text NOT NULL DEFAULT 'offline',
+    current_lat double precision,
+    current_lng double precision,
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.service_request_offers (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    service_request_id uuid NOT NULL REFERENCES public.service_requests (id) ON DELETE CASCADE,
+    technician_id uuid NOT NULL REFERENCES public.profiles (id) ON DELETE CASCADE,
+    status text NOT NULL DEFAULT 'pending',
+    expires_at timestamptz,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+-- Updated_at triggers for matchmaking tables
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'set_public_service_requests_updated_at'
+          AND tgrelid = 'public.service_requests'::regclass
+    ) THEN
+        CREATE TRIGGER set_public_service_requests_updated_at
+        BEFORE UPDATE ON public.service_requests
+        FOR EACH ROW
+        EXECUTE FUNCTION public.set_updated_at();
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'set_public_technician_status_updated_at'
+          AND tgrelid = 'public.technician_status'::regclass
+    ) THEN
+        CREATE TRIGGER set_public_technician_status_updated_at
+        BEFORE UPDATE ON public.technician_status
+        FOR EACH ROW
+        EXECUTE FUNCTION public.set_updated_at();
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'set_public_service_request_offers_updated_at'
+          AND tgrelid = 'public.service_request_offers'::regclass
+    ) THEN
+        CREATE TRIGGER set_public_service_request_offers_updated_at
+        BEFORE UPDATE ON public.service_request_offers
+        FOR EACH ROW
+        EXECUTE FUNCTION public.set_updated_at();
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Enable RLS on matchmaking tables
+ALTER TABLE public.service_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.technician_status ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.service_request_offers ENABLE ROW LEVEL SECURITY;
+
+-- Policies for public.service_requests
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'service_requests' AND policyname = 'service_requests_client_select'
+    ) THEN
+        CREATE POLICY service_requests_client_select
+            ON public.service_requests
+            FOR SELECT
+            USING (
+                auth.uid() IS NOT NULL
+                AND client_id = auth.uid()
+                AND EXISTS (
+                    SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'client'
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'service_requests' AND policyname = 'service_requests_client_insert'
+    ) THEN
+        CREATE POLICY service_requests_client_insert
+            ON public.service_requests
+            FOR INSERT
+            WITH CHECK (
+                auth.uid() IS NOT NULL
+                AND client_id = auth.uid()
+                AND EXISTS (
+                    SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'client'
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'service_requests' AND policyname = 'service_requests_technician_select'
+    ) THEN
+        CREATE POLICY service_requests_technician_select
+            ON public.service_requests
+            FOR SELECT
+            USING (
+                auth.uid() IS NOT NULL
+                AND assigned_technician_id = auth.uid()
+                AND EXISTS (
+                    SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'technician'
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'service_requests' AND policyname = 'service_requests_admin_select'
+    ) THEN
+        CREATE POLICY service_requests_admin_select
+            ON public.service_requests
+            FOR SELECT
+            USING (public.is_admin(auth.uid()));
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Policies for public.technician_status
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'technician_status' AND policyname = 'technician_status_select_self'
+    ) THEN
+        CREATE POLICY technician_status_select_self
+            ON public.technician_status
+            FOR SELECT
+            USING (
+                auth.uid() IS NOT NULL
+                AND technician_id = auth.uid()
+                AND EXISTS (
+                    SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'technician'
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'technician_status' AND policyname = 'technician_status_insert_self'
+    ) THEN
+        CREATE POLICY technician_status_insert_self
+            ON public.technician_status
+            FOR INSERT
+            WITH CHECK (
+                auth.uid() IS NOT NULL
+                AND technician_id = auth.uid()
+                AND EXISTS (
+                    SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'technician'
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'technician_status' AND policyname = 'technician_status_update_self'
+    ) THEN
+        CREATE POLICY technician_status_update_self
+            ON public.technician_status
+            FOR UPDATE
+            USING (
+                auth.uid() IS NOT NULL
+                AND technician_id = auth.uid()
+                AND EXISTS (
+                    SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'technician'
+                )
+            )
+            WITH CHECK (
+                auth.uid() IS NOT NULL
+                AND technician_id = auth.uid()
+                AND EXISTS (
+                    SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'technician'
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'technician_status' AND policyname = 'technician_status_admin_select'
+    ) THEN
+        CREATE POLICY technician_status_admin_select
+            ON public.technician_status
+            FOR SELECT
+            USING (public.is_admin(auth.uid()));
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Policies for public.service_request_offers
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'service_request_offers' AND policyname = 'service_request_offers_select_self'
+    ) THEN
+        CREATE POLICY service_request_offers_select_self
+            ON public.service_request_offers
+            FOR SELECT
+            USING (
+                auth.uid() IS NOT NULL
+                AND technician_id = auth.uid()
+                AND EXISTS (
+                    SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'technician'
+                )
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'service_request_offers' AND policyname = 'service_request_offers_admin_select'
+    ) THEN
+        CREATE POLICY service_request_offers_admin_select
+            ON public.service_request_offers
+            FOR SELECT
+            USING (public.is_admin(auth.uid()));
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Storage bucket and policies for technician documents
 INSERT INTO storage.buckets (id, name, public)
 SELECT 'tech-docs', 'tech-docs', FALSE
