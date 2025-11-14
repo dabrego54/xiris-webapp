@@ -58,7 +58,7 @@ function formatDistanceLabel(
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ): Promise<NextResponse<ServiceRequestResponse | { error: string }>> {
   try {
     const supabase = await createClient();
@@ -70,7 +70,7 @@ export async function GET(
       return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
     }
 
-    const serviceRequestId = params.id;
+    const { id: serviceRequestId } = await context.params;
     const serviceRoleClient = getSupabaseServiceRoleClient();
 
     const { data: serviceRequest, error: serviceRequestError } = await serviceRoleClient
