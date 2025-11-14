@@ -29,6 +29,11 @@ export type ApplicationStatus =
 export type AvailabilityStatus = 'online' | 'offline' | 'busy';
 
 /**
+ * Specific status values reported by the technician availability switch.
+ */
+export type TechnicianPresenceStatus = 'offline' | 'available' | 'busy';
+
+/**
  * Core user profile information shared by both clients and technicians.
  */
 export interface Profile {
@@ -76,6 +81,18 @@ export interface TechnicianProfile {
   current_location: { lat: number; lng: number } | null;
   /** ISO creation timestamp for the technician profile. */
   created_at: string;
+}
+
+/**
+ * Current presence information emitted from the technician dashboard.
+ */
+export interface TechnicianStatus {
+  technician_id: string;
+  is_online: boolean;
+  current_status: TechnicianPresenceStatus;
+  current_lat: number | null;
+  current_lng: number | null;
+  updated_at: string | null;
 }
 
 /**

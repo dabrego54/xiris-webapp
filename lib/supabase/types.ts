@@ -4,7 +4,9 @@ import type {
   ClientProfile,
   Profile,
   TechnicianApplication,
+  TechnicianPresenceStatus,
   TechnicianProfile,
+  TechnicianStatus,
 } from '@/types/database.types';
 
 type WithOptional<TSchema, TKeys extends keyof TSchema> = Omit<TSchema, TKeys> &
@@ -54,6 +56,17 @@ export type SupabaseDatabase = {
           | 'updated_at'
         >;
         Update: Partial<Omit<TechnicianApplication, 'id'>>;
+        Relationships: [];
+      };
+      technician_status: {
+        Row: TechnicianStatus;
+        Insert: WithOptional<
+          TechnicianStatus,
+          'is_online' | 'current_status' | 'current_lat' | 'current_lng' | 'updated_at'
+        >;
+        Update: Partial<
+          Omit<TechnicianStatus, 'technician_id'> & { current_status?: TechnicianPresenceStatus }
+        >;
         Relationships: [];
       };
     };
