@@ -3,6 +3,8 @@ import type { PostgrestSingleResponse } from '@supabase/supabase-js';
 import type {
   ClientProfile,
   Profile,
+  ServiceRequest,
+  ServiceRequestOffer,
   TechnicianApplication,
   TechnicianPresenceStatus,
   TechnicianProfile,
@@ -67,6 +69,31 @@ export type SupabaseDatabase = {
         Update: Partial<
           Omit<TechnicianStatus, 'technician_id'> & { current_status?: TechnicianPresenceStatus }
         >;
+        Relationships: [];
+      };
+      service_requests: {
+        Row: ServiceRequest;
+        Insert: WithOptional<
+          ServiceRequest,
+          | 'id'
+          | 'assigned_technician_id'
+          | 'status'
+          | 'problem_description'
+          | 'location_lat'
+          | 'location_lng'
+          | 'created_at'
+          | 'updated_at'
+        >;
+        Update: Partial<Omit<ServiceRequest, 'id'>>;
+        Relationships: [];
+      };
+      service_request_offers: {
+        Row: ServiceRequestOffer;
+        Insert: WithOptional<
+          ServiceRequestOffer,
+          'id' | 'status' | 'expires_at' | 'created_at' | 'updated_at'
+        >;
+        Update: Partial<Omit<ServiceRequestOffer, 'id'>>;
         Relationships: [];
       };
     };

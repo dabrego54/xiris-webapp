@@ -34,6 +34,16 @@ export type AvailabilityStatus = 'online' | 'offline' | 'busy';
 export type TechnicianPresenceStatus = 'offline' | 'available' | 'busy';
 
 /**
+ * Current workflow states for client originated service requests.
+ */
+export type ServiceRequestStatus =
+  | 'requested'
+  | 'searching'
+  | 'candidate_ready'
+  | 'accepted'
+  | 'cancelled';
+
+/**
  * Core user profile information shared by both clients and technicians.
  */
 export interface Profile {
@@ -93,6 +103,34 @@ export interface TechnicianStatus {
   current_lat: number | null;
   current_lng: number | null;
   updated_at: string | null;
+}
+
+/**
+ * Canonical representation of a service request stored in Supabase.
+ */
+export interface ServiceRequest {
+  id: string;
+  client_id: string;
+  assigned_technician_id: string | null;
+  status: ServiceRequestStatus;
+  problem_description: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Offer emitted by the matchmaking engine for a specific service request.
+ */
+export interface ServiceRequestOffer {
+  id: string;
+  service_request_id: string;
+  technician_id: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 /**

@@ -4,13 +4,17 @@ import MapFloatingControls from "./MapFloatingControls"
 import MapViewport, { type MapViewportProps } from "./MapViewport"
 
 type MapViewportWithFloatingControlsProps = Omit<MapViewportProps, "renderBottomControls"> & {
-  ctaHref: string
+  ctaHref?: string
   ctaLabel: string
+  ctaOnClick?: () => void
+  ctaDisabled?: boolean
 }
 
 export default function MapViewportWithFloatingControls({
   ctaHref,
   ctaLabel,
+  ctaOnClick,
+  ctaDisabled,
   ...viewportProps
 }: MapViewportWithFloatingControlsProps) {
   return (
@@ -22,6 +26,8 @@ export default function MapViewportWithFloatingControls({
           canCenter={canCenter}
           ctaHref={ctaHref}
           ctaLabel={ctaLabel}
+          ctaOnClick={ctaOnClick}
+          ctaDisabled={ctaDisabled}
         />
       )}
     />
