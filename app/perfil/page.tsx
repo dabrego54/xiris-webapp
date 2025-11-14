@@ -37,6 +37,87 @@ import { profileFormSchema, defaultProfileValues, type ProfileFormValues } from 
 import { updatePasswordSchema } from "@/lib/validations/auth.validation"
 import type { DatabaseProfile } from "@/types/database.types"
 
+type SupportedUserType = DatabaseProfile["user_type"]
+type MetadataRecord = Record<string, unknown>
+
+const USER_TYPE_FALLBACK: SupportedUserType = "cliente"
+
+const USER_TYPE_KEYS = ["user_type", "userType", "role"] as const
+
+function normaliseUserType(value: unknown): SupportedUserType | null {
+  if (typeof value !== "string") {
+    return null
+  }
+
+  const normalised = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+
+  if (normalised === "tecnico" || normalised === "technician") {
+    return "tecnico"
+  }
+
+  if (normalised === "cliente" || normalised === "client") {
+    return "cliente"
+  }
+
+  return null
+}
+
+function extractUserType(record?: MetadataRecord | null): SupportedUserType | null {
+  if (!record) {
+    return null
+  }
+
+  for (const key of USER_TYPE_KEYS) {
+    const resolved = normaliseUserType(record[key])
+    if (resolved) {
+      return resolved
+    }
+  }
+
+  return null
+}
+
+function resolveUserType(
+  {
+    profile,
+    metadata,
+    appMetadata,
+  }: {
+    profile: DatabaseProfile | null
+    metadata?: MetadataRecord
+    appMetadata?: MetadataRecord
+  },
+  fallback: SupportedUserType = USER_TYPE_FALLBACK,
+): SupportedUserType {
+  const profileType = normaliseUserType(profile?.user_type)
+  if (profileType) {
+    return profileType
+  }
+
+  const metadataType = extractUserType(metadata)
+  if (metadataType) {
+    return metadataType
+  }
+
+  const appMetadataType = extractUserType(appMetadata)
+  if (appMetadataType) {
+    return appMetadataType
+  }
+
+  if (profile?.technician_profile) {
+    return "tecnico"
+  }
+
+  if (profile?.client_profile) {
+    return "cliente"
+  }
+
+  return fallback
+}
+
 const passwordSchema = updatePasswordSchema
 
 type PasswordFormValues = z.infer<typeof passwordSchema>
@@ -51,6 +132,7 @@ type MetadataPreferences = {
 export default function ProfilePage(): JSX.Element {
   const router = useRouter()
   const [currentProfile, setCurrentProfile] = useState<DatabaseProfile | null>(null)
+  const [resolvedUserType, setResolvedUserType] = useState<SupportedUserType>(USER_TYPE_FALLBACK)
   const [profileId, setProfileId] = useState<string | null>(null)
   const [isFetching, setIsFetching] = useState(true)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
@@ -104,8 +186,15 @@ export default function ProfilePage(): JSX.Element {
 
         setProfileId(user.id)
         setCurrentProfile(profile ?? null)
-
-        const metadata = (user.user_metadata ?? {}) as Record<string, unknown>
+        const metadata = (user.user_metadata ?? {}) as MetadataRecord
+        const appMetadata = (user.app_metadata ?? {}) as MetadataRecord
+        setResolvedUserType(
+          resolveUserType({
+            profile: profile ?? null,
+            metadata,
+            appMetadata,
+          }),
+        )
         const boolFromMetadata = (key: string, fallback: boolean): boolean => {
           const value = metadata[key]
           if (typeof value === "boolean") {
@@ -422,7 +511,9 @@ export default function ProfilePage(): JSX.Element {
         }
 
         toast.success("Perfil actualizado correctamente.")
-        setCurrentProfile(data ?? null)
+        const nextProfile = data ?? null
+        setCurrentProfile(nextProfile)
+        setResolvedUserType((previousType) => resolveUserType({ profile: nextProfile }, previousType))
         setSelectedDocuments([])
         setSelectedAvatar(null)
 
@@ -486,8 +577,8 @@ export default function ProfilePage(): JSX.Element {
   const technicianRating = currentProfile?.technician_profile?.rating ?? 0
   const technicianServices = currentProfile?.technician_profile?.total_services ?? 0
   const clientRequests = currentProfile?.client_profile?.total_requests ?? 0
-  const isClient = currentProfile?.user_type === "cliente"
-  const isTechnician = currentProfile?.user_type === "tecnico"
+  const isClient = resolvedUserType === "cliente"
+  const isTechnician = resolvedUserType === "tecnico"
   const userTypeLabel = isClient ? "Cliente" : isTechnician ? "Técnico" : "General"
   const unsavedChanges = form.formState.isDirty || selectedAvatar !== null || selectedDocuments.length > 0
 
