@@ -7,8 +7,10 @@ import PrimaryCTA from "./PrimaryCTA"
 type MapFloatingControlsProps = {
   onCenter: () => void
   canCenter: boolean
-  ctaHref: string
+  ctaHref?: string
   ctaLabel: string
+  ctaOnClick?: () => void
+  ctaDisabled?: boolean
 }
 
 export default function MapFloatingControls({
@@ -16,6 +18,8 @@ export default function MapFloatingControls({
   canCenter,
   ctaHref,
   ctaLabel,
+  ctaOnClick,
+  ctaDisabled,
 }: MapFloatingControlsProps) {
   return (
     <div className="pointer-events-auto flex items-center gap-3">
@@ -29,7 +33,9 @@ export default function MapFloatingControls({
         <Navigation className="h-6 w-6" />
       </button>
 
-      <PrimaryCTA href={ctaHref}>{ctaLabel}</PrimaryCTA>
+      <PrimaryCTA href={ctaHref} onClick={ctaOnClick} disabled={ctaDisabled}>
+        {ctaLabel}
+      </PrimaryCTA>
     </div>
   )
 }

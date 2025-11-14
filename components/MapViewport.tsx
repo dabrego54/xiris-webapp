@@ -26,6 +26,7 @@ export type MapViewportProps = {
   showRoute?: boolean
   eta?: string
   selectedTechnicianId?: string
+  onUserLocationChange?: (location: { lat: number; lng: number } | null) => void
   renderBottomControls?: (controls: MapViewportControlProps) => ReactNode
 }
 
@@ -151,6 +152,7 @@ export default function MapViewport({
   showRoute = false,
   eta,
   selectedTechnicianId,
+  onUserLocationChange,
   renderBottomControls,
 }: MapViewportProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -302,6 +304,19 @@ export default function MapViewport({
       }
     })
   }, [locationAccuracy, userLocation])
+
+  useEffect(() => {
+    if (!onUserLocationChange) {
+      return
+    }
+
+    if (userLocation) {
+      onUserLocationChange({ lat: userLocation[0], lng: userLocation[1] })
+      return
+    }
+
+    onUserLocationChange(null)
+  }, [onUserLocationChange, userLocation])
 
   useEffect(() => {
     if (!mapRef.current || !techniciansLayerRef.current) {
