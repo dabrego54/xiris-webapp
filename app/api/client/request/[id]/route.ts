@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import { createClient } from '@/lib/supabase/server';
 import type { ServiceRequestStatus } from '@/types/database.types';
+import type { SupabaseDatabase } from '@/lib/supabase/types';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type TechnicianCandidatePayload = {
   id: string;
@@ -19,6 +21,13 @@ type TechnicianCandidatePayload = {
   presenceStatus: string | null;
   isOnline: boolean | null;
   distanceLabel: string | null;
+};
+
+type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
 };
 
 type ServiceRequestResponse = {
@@ -62,6 +71,32 @@ function formatDistanceLabel(
   }
 
   return `${distance.toFixed(1)} km`;
+}
+
+async function fetchTechnicianProfile(
+  serviceRoleClient: SupabaseClient<SupabaseDatabase>,
+  technicianId: string
+) {
+  const selectColumns = 'id, full_name, avatar_url, phone';
+  let profileResponse = await serviceRoleClient
+    .from('profiles')
+    .select(selectColumns)
+    .eq('id', technicianId)
+    .maybeSingle<ProfileRow>();
+
+  if (profileResponse.error?.code === '42703') {
+    console.warn(
+      'Column avatar_url no existe en profiles, degradando la consulta.',
+      profileResponse.error
+    );
+    profileResponse = await serviceRoleClient
+      .from('profiles')
+      .select('id, full_name, phone')
+      .eq('id', technicianId)
+      .maybeSingle<ProfileRow>();
+  }
+
+  return profileResponse;
 }
 
 export async function GET(
@@ -114,11 +149,7 @@ export async function GET(
     }
 
     const [profileResponse, technicianProfileResponse, technicianStatusResponse] = await Promise.all([
-      serviceRoleClient
-        .from('profiles')
-        .select('id, full_name, avatar_url, phone')
-        .eq('id', offer.technician_id)
-        .maybeSingle(),
+      fetchTechnicianProfile(serviceRoleClient, offer.technician_id),
       serviceRoleClient
         .from('technician_profiles')
         .select('specialties, rating, total_services, service_areas, is_verified, availability_status')
@@ -144,12 +175,16 @@ export async function GET(
       console.warn('No se pudo leer la ubicación del técnico.', technicianStatusResponse.error);
     }
 
-    const technicianCandidate: TechnicianCandidatePayload | null = profileResponse.data
+    const profileData = profileResponse.data as ProfileRow | null;
+
+    const technicianCandidate: TechnicianCandidatePayload | null = profileData
       ? {
-          id: profileResponse.data.id,
-          fullName: profileResponse.data.full_name ?? 'Técnico disponible',
-          avatarUrl: profileResponse.data.avatar_url ?? null,
-          phone: profileResponse.data.phone ?? null,
+          id: profileData.id,
+          fullName: profileData.full_name ?? 'Técnico disponible',
+          avatarUrl: Object.hasOwn(profileData, 'avatar_url')
+            ? profileData.avatar_url ?? null
+            : null,
+          phone: Object.hasOwn(profileData, 'phone') ? profileData.phone ?? null : null,
           rating: technicianProfileResponse.data?.rating ?? null,
           experience:
             technicianProfileResponse.data?.total_services != null
