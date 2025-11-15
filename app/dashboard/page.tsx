@@ -12,10 +12,39 @@ type RequestStatus = "idle" | "requested" | "searching" | "candidate_ready" | "a
 type TechnicianCandidate = {
   id: string
   fullName: string
+  avatarUrl: string | null
+  phone: string | null
   rating: number | null
   experience: string | null
   skills: string[] | null
+  serviceAreas: string[] | null
+  totalServices: number | null
+  isVerified: boolean | null
+  availabilityStatus: string | null
+  presenceStatus: string | null
+  isOnline: boolean | null
   distanceLabel: string | null
+}
+
+const availabilityStatusLabels: Record<string, string> = {
+  online: "Disponible",
+  offline: "Fuera de línea",
+  busy: "Ocupado",
+}
+
+const presenceStatusLabels: Record<string, string> = {
+  available: "Disponible",
+  busy: "Ocupado",
+  offline: "Fuera de línea",
+}
+
+const getInitials = (fullName: string) => {
+  return fullName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("")
 }
 
 export default function DashboardPage() {
@@ -213,29 +242,103 @@ export default function DashboardPage() {
         {requestStatus === "candidate_ready" && technicianCandidate && (
           <div className="pointer-events-none absolute bottom-32 left-1/2 z-[11000] w-full max-w-md -translate-x-1/2 px-4 lg:left-auto lg:right-8 lg:translate-x-0">
             <div className="pointer-events-auto rounded-3xl bg-white p-6 shadow-2xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-purple-600">Técnico encontrado</p>
-                  <p className="text-2xl font-bold text-gray-900">{technicianCandidate.fullName}</p>
+              <div className="flex items-start gap-4">
+                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl bg-gray-100">
+                  {technicianCandidate.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={technicianCandidate.avatarUrl}
+                      alt={technicianCandidate.fullName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-gray-500">
+                      {getInitials(technicianCandidate.fullName)}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-purple-600">Técnico encontrado</p>
+                    {technicianCandidate.isVerified && (
+                      <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700">
+                        Verificado
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-2xl font-bold text-gray-900">{technicianCandidate.fullName}</p>
                   {technicianCandidate.skills && technicianCandidate.skills.length > 0 && (
-                    <p className="mt-1 text-sm text-gray-500">
-                      Especialista en {technicianCandidate.skills.slice(0, 2).join(", ")}
-                      {technicianCandidate.skills.length > 2 ? "…" : ""}
+                    <p className="mt-1 text-sm text-gray-600">
+                      Especialista en {technicianCandidate.skills.slice(0, 3).join(", ")}
+                      {technicianCandidate.skills.length > 3 ? "…" : ""}
                     </p>
                   )}
-                  {technicianCandidate.experience && (
-                    <p className="text-sm text-gray-500">{technicianCandidate.experience}</p>
-                  )}
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+                    {technicianCandidate.distanceLabel && <span>A {technicianCandidate.distanceLabel}</span>}
+                    {technicianCandidate.availabilityStatus && (
+                      <span>
+                        Disponibilidad: {availabilityStatusLabels[technicianCandidate.availabilityStatus] ?? "—"}
+                      </span>
+                    )}
+                    {technicianCandidate.presenceStatus && (
+                      <span>
+                        Estado: {presenceStatusLabels[technicianCandidate.presenceStatus] ?? technicianCandidate.presenceStatus}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-yellow-500">
                     ⭐ {technicianCandidate.rating ? technicianCandidate.rating.toFixed(1) : "4.9"}
                   </p>
-                  {technicianCandidate.distanceLabel && (
-                    <p className="text-xs text-gray-500">A {technicianCandidate.distanceLabel}</p>
+                  {typeof technicianCandidate.totalServices === "number" && (
+                    <p className="text-xs text-gray-500">{technicianCandidate.totalServices} servicios</p>
                   )}
                 </div>
               </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-2xl bg-gray-50 p-3">
+                  <p className="text-xs text-gray-500">Calificación</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {technicianCandidate.rating ? technicianCandidate.rating.toFixed(1) : "4.9"}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-gray-50 p-3">
+                  <p className="text-xs text-gray-500">Servicios completados</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {technicianCandidate.totalServices ?? "—"}
+                  </p>
+                </div>
+              </div>
+
+              {technicianCandidate.serviceAreas && technicianCandidate.serviceAreas.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Áreas de servicio</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {technicianCandidate.serviceAreas.slice(0, 4).map((area) => (
+                      <span key={area} className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-700">
+                        {area}
+                      </span>
+                    ))}
+                    {technicianCandidate.serviceAreas.length > 4 && (
+                      <span className="text-xs text-gray-500">
+                        +{technicianCandidate.serviceAreas.length - 4} más
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {technicianCandidate.phone && (
+                <div className="mt-4 text-sm text-gray-600">
+                  Contacto directo: <span className="font-semibold">{technicianCandidate.phone}</span>
+                </div>
+              )}
+
+              {technicianCandidate.experience && (
+                <p className="mt-4 text-sm text-gray-600">{technicianCandidate.experience}</p>
+              )}
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <button
