@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       })
       .eq('id', serviceRequest.id)
       .is('assigned_technician_id', null)
-      .in('status', ['requested', 'searching'])
+      .in('status', ['requested', 'searching', 'candidate_ready'])
       .select('id');
 
     if (updateError) {

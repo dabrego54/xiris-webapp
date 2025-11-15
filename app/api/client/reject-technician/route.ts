@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     const { data: serviceRequest, error: serviceRequestError } = await serviceRoleClient
       .from('service_requests')
-      .select('id, client_id')
+      .select('id, client_id, status, assigned_technician_id')
       .eq('id', payload.serviceRequestId)
       .maybeSingle();
 
@@ -38,32 +38,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Solicitud no encontrada.' }, { status: 404 });
     }
 
-    const { data: pendingOffer, error: offerError } = await serviceRoleClient
+    const { data: latestOffer, error: offerError } = await serviceRoleClient
       .from('service_request_offers')
-      .select('id, technician_id')
+      .select('id, technician_id, status')
       .eq('service_request_id', payload.serviceRequestId)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'accepted'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (offerError) {
-      console.error('No se pudo consultar la oferta pendiente.', offerError);
+      console.error('No se pudo consultar la oferta activa.', offerError);
       return NextResponse.json({ error: 'No se encontró una oferta de técnico.' }, { status: 500 });
     }
 
-    if (!pendingOffer) {
+    if (!latestOffer) {
       return NextResponse.json({ error: 'No hay un técnico pendiente de rechazar.' }, { status: 400 });
     }
 
     const { error: rejectError } = await serviceRoleClient
       .from('service_request_offers')
       .update({ status: 'rejected' })
-      .eq('id', pendingOffer.id);
+      .eq('id', latestOffer.id);
 
     if (rejectError) {
       console.error('No se pudo rechazar la oferta del técnico.', rejectError);
       return NextResponse.json({ error: 'No se pudo rechazar al técnico.' }, { status: 500 });
+    }
+
+    if (latestOffer.status === 'accepted') {
+      const [{ error: requestResetError }, { error: technicianStatusError }] = await Promise.all([
+        serviceRoleClient
+          .from('service_requests')
+          .update({ status: 'searching', assigned_technician_id: null })
+          .eq('id', payload.serviceRequestId)
+          .eq('status', 'candidate_ready'),
+        serviceRoleClient
+          .from('technician_status')
+          .update({ current_status: 'available' })
+          .eq('technician_id', latestOffer.technician_id),
+      ]);
+
+      if (requestResetError) {
+        console.error('No se pudo reiniciar la solicitud tras el rechazo del cliente.', requestResetError);
+        return NextResponse.json({ error: 'No se pudo continuar con la búsqueda.' }, { status: 500 });
+      }
+
+      if (technicianStatusError) {
+        console.error('No se pudo actualizar el estado del técnico rechazado.', technicianStatusError);
+        return NextResponse.json({ error: 'No se pudo actualizar el estado del técnico.' }, { status: 500 });
+      }
     }
 
     const { data: offerHistory, error: historyError } = await serviceRoleClient

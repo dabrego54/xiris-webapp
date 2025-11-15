@@ -16,6 +16,7 @@ const POLLING_INTERVAL_MS = 6000;
 
 export function OffersPanel({ initialStatus }: OffersPanelProps) {
   const [latestOffer, setLatestOffer] = useState<TechnicianOfferResponse | null>(null);
+  const [acceptedOffer, setAcceptedOffer] = useState<TechnicianOfferResponse | null>(null);
   const [isBusy, setIsBusy] = useState(initialStatus === 'busy');
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
@@ -23,6 +24,7 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
   const [error, setError] = useState<string | null>(null);
 
   const hasOffer = Boolean(latestOffer);
+  const isAwaitingClientConfirmation = Boolean(acceptedOffer);
 
   const fetchLatestOffer = useCallback(async () => {
     if (isBusy) {
@@ -60,6 +62,12 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
       setError('Hubo un problema obteniendo nuevas solicitudes.');
     } finally {
       setIsLoading(false);
+    }
+  }, [isBusy]);
+
+  useEffect(() => {
+    if (!isBusy) {
+      setAcceptedOffer(null);
     }
   }, [isBusy]);
 
@@ -106,6 +114,7 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
       if (payload.ok) {
         toast.success('Servicio asignado');
         setIsBusy(true);
+        setAcceptedOffer(latestOffer);
         setLatestOffer(null);
         return;
       }
@@ -150,6 +159,7 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
 
       toast.message('Oferta rechazada');
       setLatestOffer(null);
+      setAcceptedOffer(null);
       await fetchLatestOffer();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo rechazar la oferta.';
@@ -160,6 +170,10 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
   }, [fetchLatestOffer, latestOffer]);
 
   const statusLabel = useMemo(() => {
+    if (isAwaitingClientConfirmation) {
+      return 'Esperando la confirmación del cliente.';
+    }
+
     if (isBusy) {
       return 'Actualmente estás ocupado con un servicio.';
     }
@@ -173,7 +187,7 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
     }
 
     return 'Mantente online para recibir solicitudes cercanas.';
-  }, [error, hasOffer, isBusy]);
+  }, [error, hasOffer, isAwaitingClientConfirmation, isBusy]);
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm">
@@ -190,7 +204,30 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
         ) : null}
       </div>
 
-      {isBusy ? (
+      {isAwaitingClientConfirmation && acceptedOffer ? (
+        <div className="space-y-4 rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-amber-500">
+              Esperando confirmación del cliente
+            </p>
+            <p className="text-lg font-semibold text-slate-900">
+              {acceptedOffer.problemDescription || 'Servicio asignado'}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Te avisaremos cuando el cliente confirme para iniciar el servicio.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <MapPin className="h-4 w-4 text-amber-500" aria-hidden />
+            <span>
+              Lat {acceptedOffer.location.lat.toFixed(4)} · Lng {acceptedOffer.location.lng.toFixed(4)}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">
+            ID de solicitud: <span className="font-mono">{acceptedOffer.serviceRequestId}</span>
+          </p>
+        </div>
+      ) : isBusy ? (
         <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-sm text-slate-600">
           Ya tienes un servicio asignado. Te avisaremos cuando finalice para recibir nuevas solicitudes.
         </div>
