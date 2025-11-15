@@ -201,6 +201,11 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
             <p className="text-lg font-semibold text-slate-900">
               {latestOffer?.problemDescription || 'Servicio sin descripción'}
             </p>
+            {latestOffer?.serviceRequestStatus && (
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Estado actual: {latestOffer.serviceRequestStatus}
+              </p>
+            )}
             <p className="mt-1 text-sm text-slate-500">Distancia estimada: próximamente</p>
           </div>
           <div className="flex items-center gap-2 text-sm text-slate-600">

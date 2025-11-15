@@ -8,6 +8,7 @@ export interface TechnicianOfferResponse {
   createdAt: string;
   expiresAt: string | null;
   problemDescription: string | null;
+  serviceRequestStatus: string | null;
   location: {
     lat: number;
     lng: number;
@@ -64,27 +65,31 @@ export async function GET() {
 
     const requestMap = new Map(serviceRequests?.map((request) => [request.id, request]));
 
-    const payload: TechnicianOfferResponse[] = offers
-      .map((offer) => {
-        const request = requestMap.get(offer.service_request_id);
+    const payload: TechnicianOfferResponse[] = offers.map((offer) => {
+      const request = requestMap.get(offer.service_request_id);
 
-        if (!request) {
-          return null;
-        }
+      if (!request) {
+        console.warn(
+          '[api/tech/offers] No se encontró service_request para la oferta',
+          offer.id,
+          'con service_request_id',
+          offer.service_request_id
+        );
+      }
 
-        return {
-          offerId: offer.id,
-          serviceRequestId: offer.service_request_id,
-          createdAt: offer.created_at,
-          expiresAt: offer.expires_at,
-          problemDescription: request.problem_description,
-          location: {
-            lat: request.location_lat ?? 0,
-            lng: request.location_lng ?? 0,
-          },
-        } satisfies TechnicianOfferResponse;
-      })
-      .filter((item): item is TechnicianOfferResponse => Boolean(item));
+      return {
+        offerId: offer.id,
+        serviceRequestId: offer.service_request_id,
+        createdAt: offer.created_at,
+        expiresAt: offer.expires_at,
+        problemDescription: request?.problem_description ?? null,
+        serviceRequestStatus: request?.status ?? null,
+        location: {
+          lat: request?.location_lat ?? 0,
+          lng: request?.location_lng ?? 0,
+        },
+      } satisfies TechnicianOfferResponse;
+    });
 
     return NextResponse.json(payload);
   } catch (error) {
