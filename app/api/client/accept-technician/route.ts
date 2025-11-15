@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 
     const { data: serviceRequest, error: serviceRequestError } = await serviceRoleClient
       .from('service_requests')
-      .select('id, client_id')
+      .select('id, client_id, status, assigned_technician_id')
       .eq('id', payload.serviceRequestId)
       .maybeSingle();
 
@@ -37,34 +37,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Solicitud no encontrada.' }, { status: 404 });
     }
 
-    const { data: pendingOffer, error: offerError } = await serviceRoleClient
+    if (serviceRequest.status !== 'candidate_ready') {
+      return NextResponse.json({ error: 'No hay un técnico listo para confirmar.' }, { status: 400 });
+    }
+
+    const { data: acceptedOffer, error: offerError } = await serviceRoleClient
       .from('service_request_offers')
-      .select('id, technician_id')
+      .select('id, technician_id, status')
       .eq('service_request_id', payload.serviceRequestId)
-      .eq('status', 'pending')
+      .eq('status', 'accepted')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (offerError) {
-      console.error('No se pudo consultar la oferta pendiente.', offerError);
-      return NextResponse.json({ error: 'No se encontró una oferta de técnico.' }, { status: 500 });
+      console.error('No se pudo consultar la oferta aceptada por el técnico.', offerError);
+      return NextResponse.json({ error: 'No se encontró una oferta activa.' }, { status: 500 });
     }
 
-    if (!pendingOffer) {
-      return NextResponse.json({ error: 'No hay un técnico pendiente de aceptar.' }, { status: 400 });
+    if (!acceptedOffer) {
+      return NextResponse.json({ error: 'No hay un técnico listo para confirmar.' }, { status: 400 });
     }
 
-    const [{ error: updateOfferError }, { error: updateRequestError }] = await Promise.all([
-      serviceRoleClient.from('service_request_offers').update({ status: 'accepted' }).eq('id', pendingOffer.id),
-      serviceRoleClient
-        .from('service_requests')
-        .update({ status: 'accepted', assigned_technician_id: pendingOffer.technician_id })
-        .eq('id', payload.serviceRequestId),
-    ]);
+    if (
+      !serviceRequest.assigned_technician_id ||
+      serviceRequest.assigned_technician_id !== acceptedOffer.technician_id
+    ) {
+      return NextResponse.json({ error: 'El técnico ya no está disponible.' }, { status: 400 });
+    }
 
-    if (updateOfferError || updateRequestError) {
-      console.error('No se pudo aceptar la oferta del técnico.', updateOfferError ?? updateRequestError);
+    const { error: updateRequestError } = await serviceRoleClient
+      .from('service_requests')
+      .update({ status: 'accepted' })
+      .eq('id', payload.serviceRequestId)
+      .eq('status', 'candidate_ready');
+
+    if (updateRequestError) {
+      console.error('No se pudo marcar la solicitud como aceptada por el cliente.', updateRequestError);
       return NextResponse.json({ error: 'No se pudo aceptar al técnico.' }, { status: 500 });
     }
 

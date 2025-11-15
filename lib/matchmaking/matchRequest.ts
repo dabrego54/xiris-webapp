@@ -66,14 +66,5 @@ export async function matchRequest(
     throw formatSupabaseError('No se pudo registrar la oferta del técnico', offerError.message);
   }
 
-  const { error: candidateReadyError } = await supabase
-    .from('service_requests')
-    .update({ status: 'candidate_ready' })
-    .eq('id', serviceRequestId);
-
-  if (candidateReadyError) {
-    throw formatSupabaseError('No se pudo actualizar el estado a "candidate_ready"', candidateReadyError.message);
-  }
-
-  return { status: 'candidate_ready' };
+  return { status: 'searching' };
 }
