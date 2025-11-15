@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { createClient } from '@/lib/supabase/server';
 import { AvailabilityToggle } from './availability-toggle';
+import { OffersPanel } from './offers-panel';
 import type { TechnicianPresenceStatus } from '@/types/database.types';
 import {
   ArrowUpRight,
@@ -135,6 +136,8 @@ export default async function TechDashboardPage() {
                 <AvailabilityToggle initialStatus={currentStatus} />
               </div>
             </section>
+
+            <OffersPanel initialStatus={currentStatus} />
 
             <section className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm">
               <div className="flex items-center justify-between">
