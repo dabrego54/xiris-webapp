@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { createClient } from '@/lib/supabase/server';
+import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 
 export interface TechnicianOfferResponse {
   offerId: string;
@@ -53,7 +54,9 @@ export async function GET() {
 
     const serviceRequestIds = offers.map((offer) => offer.service_request_id);
 
-    const { data: serviceRequests, error: serviceRequestsError } = await supabase
+    const serviceRoleClient = getSupabaseServiceRoleClient();
+
+    const { data: serviceRequests, error: serviceRequestsError } = await serviceRoleClient
       .from('service_requests')
       .select('id, problem_description, location_lat, location_lng, status')
       .in('id', serviceRequestIds);

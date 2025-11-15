@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { createClient } from '@/lib/supabase/server';
+import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 
 interface AcceptOfferPayload {
   offerId?: string;
@@ -44,7 +45,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
     }
 
-    const { data: offer, error: offerError } = await supabase
+    const serviceRoleClient = getSupabaseServiceRoleClient();
+
+    const { data: offer, error: offerError } = await serviceRoleClient
       .from('service_request_offers')
       .select('*')
       .eq('id', body.offerId)
@@ -68,11 +71,11 @@ export async function POST(request: Request) {
     }
 
     if (isOfferExpired(offer.expires_at)) {
-      await supabase.from('service_request_offers').update({ status: 'rejected' }).eq('id', offer.id);
+      await serviceRoleClient.from('service_request_offers').update({ status: 'rejected' }).eq('id', offer.id);
       return NextResponse.json({ ok: false, reason: 'offer_expired' });
     }
 
-    const { data: serviceRequest, error: serviceRequestError } = await supabase
+    const { data: serviceRequest, error: serviceRequestError } = await serviceRoleClient
       .from('service_requests')
       .select('id, assigned_technician_id, status')
       .eq('id', offer.service_request_id)
@@ -84,11 +87,11 @@ export async function POST(request: Request) {
     }
 
     if (!serviceRequest) {
-      await supabase.from('service_request_offers').update({ status: 'rejected' }).eq('id', offer.id);
+      await serviceRoleClient.from('service_request_offers').update({ status: 'rejected' }).eq('id', offer.id);
       return NextResponse.json({ ok: false, reason: 'service_unavailable' });
     }
 
-    const { data: updatedRequests, error: updateError } = await supabase
+    const { data: updatedRequests, error: updateError } = await serviceRoleClient
       .from('service_requests')
       .update({
         assigned_technician_id: user.id,
@@ -107,11 +110,11 @@ export async function POST(request: Request) {
     const wasAssigned = Array.isArray(updatedRequests) && updatedRequests.length === 1;
 
     if (!wasAssigned) {
-      await supabase.from('service_request_offers').update({ status: 'rejected' }).eq('id', offer.id);
+      await serviceRoleClient.from('service_request_offers').update({ status: 'rejected' }).eq('id', offer.id);
       return NextResponse.json({ ok: false, reason: 'service_unavailable' });
     }
 
-    const { error: offerUpdateError } = await supabase
+    const { error: offerUpdateError } = await serviceRoleClient
       .from('service_request_offers')
       .update({ status: 'accepted' })
       .eq('id', offer.id);
@@ -121,7 +124,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No se pudo confirmar la oferta.' }, { status: 500 });
     }
 
-    const { error: statusError } = await supabase.from('technician_status').upsert({
+    const { error: statusError } = await serviceRoleClient.from('technician_status').upsert({
       technician_id: user.id,
       current_status: 'busy',
       is_online: true,
