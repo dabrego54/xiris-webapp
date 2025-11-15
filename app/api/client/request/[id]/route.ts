@@ -4,7 +4,7 @@ import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import { createClient } from '@/lib/supabase/server';
 import type { ServiceRequestStatus } from '@/types/database.types';
 import type { SupabaseDatabase } from '@/lib/supabase/types';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { PostgrestSingleResponse, SupabaseClient } from '@supabase/supabase-js';
 
 type TechnicianCandidatePayload = {
   id: string;
@@ -28,6 +28,12 @@ type ProfileRow = {
   full_name: string | null;
   phone?: string | null;
   avatar_url?: string | null;
+};
+
+type ServiceRequestOfferRow = {
+  id: string;
+  technician_id: string;
+  status: 'pending' | 'accepted';
 };
 
 type ServiceRequestResponse = {
@@ -77,26 +83,34 @@ async function fetchTechnicianProfile(
   serviceRoleClient: SupabaseClient<SupabaseDatabase>,
   technicianId: string
 ) {
-  const selectColumns = 'id, full_name, avatar_url, phone';
-  let profileResponse = await serviceRoleClient
-    .from('profiles')
-    .select(selectColumns)
-    .eq('id', technicianId)
-    .maybeSingle<ProfileRow>();
+  const profileColumnOptions = [
+    'id, full_name, avatar_url, phone',
+    'id, full_name, phone',
+    'id, full_name',
+  ];
 
-  if (profileResponse.error?.code === '42703') {
-    console.warn(
-      'Column avatar_url no existe en profiles, degradando la consulta.',
-      profileResponse.error
-    );
-    profileResponse = await serviceRoleClient
+  let lastResponse: PostgrestSingleResponse<ProfileRow> | null = null;
+
+  for (const selectColumns of profileColumnOptions) {
+    const response = await serviceRoleClient
       .from('profiles')
-      .select('id, full_name, phone')
+      .select(selectColumns)
       .eq('id', technicianId)
       .maybeSingle<ProfileRow>();
+
+    if (response.error?.code === '42703') {
+      console.warn(
+        `Columnas faltantes (${selectColumns}) en profiles; degradando la consulta.`,
+        response.error
+      );
+      lastResponse = response;
+      continue;
+    }
+
+    return response;
   }
 
-  return profileResponse;
+  return lastResponse as PostgrestSingleResponse<ProfileRow>;
 }
 
 export async function GET(
@@ -138,7 +152,7 @@ export async function GET(
       .in('status', ['pending', 'accepted'])
       .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle();
+      .maybeSingle<ServiceRequestOfferRow>();
 
     if (!offer) {
       return NextResponse.json({
