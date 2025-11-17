@@ -7,12 +7,13 @@ import PrimaryCTA from "@/components/PrimaryCTA"
 import techniciansData from "@/data/technicians.json"
 import { notFound } from "next/navigation"
 
-export default function TechnicianProfilePage({
-  params,
-}: {
-  params: { id: string }
-}) {
-  const technician = techniciansData.find((t) => t.id === params.id)
+type TechnicianProfilePageProps = {
+  params: Promise<{ id: string }>
+}
+
+export default async function TechnicianProfilePage({ params }: TechnicianProfilePageProps) {
+  const { id } = await params
+  const technician = techniciansData.find((t) => t.id === id)
 
   if (!technician) {
     notFound()

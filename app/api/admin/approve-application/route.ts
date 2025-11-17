@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 
 import type { SupabaseDatabase } from '@/lib/supabase/types';
+import type { TechnicianApplication } from '@/types/database.types';
 import { createClient as createSupabaseServerClient } from '@/lib/supabase/server';
 
 interface ApproveApplicationPayload {
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .single();
+    .single<{ role: string | null }>();
 
   if (profileError || profile?.role !== 'admin') {
     return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 403 });
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
     .from('technician_applications')
     .select('*')
     .eq('id', applicationId)
-    .single();
+    .single<TechnicianApplication>();
 
   if (applicationError || !application) {
     return NextResponse.json({ ok: false, error: 'Aplicación no encontrada' }, { status: 404 });
@@ -111,7 +112,7 @@ export async function POST(req: Request) {
 
     const { error: profileUpsertError } = await serviceClient
       .from('profiles')
-      .upsert({ id: targetUserId, role: 'technician' });
+      .upsert({ id: targetUserId, role: 'technician' } as never);
 
     if (profileUpsertError) {
       console.error('Error updating technician profile.', profileUpsertError);
@@ -131,7 +132,7 @@ export async function POST(req: Request) {
 
     const { error: profileUpdateError } = await serviceClient
       .from('profiles')
-      .update({ role: 'client' })
+      .update({ role: 'client' } as never)
       .eq('id', targetUserId);
 
     if (profileUpdateError) {
@@ -142,7 +143,7 @@ export async function POST(req: Request) {
 
   const { error: updateError } = await serviceClient
     .from('technician_applications')
-    .update(updates)
+    .update(updates as never)
     .eq('id', applicationId);
 
   if (updateError) {
@@ -159,7 +160,7 @@ export async function POST(req: Request) {
       decision,
       reviewNotes: reviewNotes ?? null,
     },
-  });
+  } as never);
 
   if (auditError) {
     console.error('Error inserting audit log for technician application review.', auditError);
