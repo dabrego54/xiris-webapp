@@ -157,6 +157,11 @@ interface ActionResult<TData> {
   error: string | null;
 }
 
+interface AvailabilityResult {
+  available: boolean;
+  error: string | null;
+}
+
 type SupabaseServerClient = SupabaseClient<SupabaseDatabase>;
 
 const USER_STATUS_VALUES = new Set<UserStatus>([
@@ -196,6 +201,49 @@ function toStringArray(value: unknown): string[] | undefined {
   }
 
   return undefined;
+}
+
+async function authUserExists(email: string): Promise<boolean> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error(
+      'Supabase service role credentials are not configured. Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set.'
+    );
+  }
+
+  const url = new URL('/auth/v1/admin/users', supabaseUrl);
+  url.searchParams.set('email', email.toLowerCase());
+  url.searchParams.set('per_page', '1');
+  url.searchParams.set('page', '1');
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      Accept: 'application/json',
+    },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`auth.admin users lookup failed with status ${response.status}: ${details}`);
+  }
+
+  const payload = (await response.json()) as
+    | Array<{ email?: string | null }>
+    | { users?: Array<{ email?: string | null }> };
+
+  const users = Array.isArray(payload) ? payload : Array.isArray(payload.users) ? payload.users : [];
+
+  if (!users || users.length === 0) {
+    return false;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  return users.some((user) => typeof user.email === 'string' && user.email.trim().toLowerCase() === normalizedEmail);
 }
 
 function toNumber(value: unknown, fallback: number): number {
@@ -570,6 +618,32 @@ export async function signUp(data: SignUpData): Promise<ActionResult<User | null
 
     console.error('Error inesperado durante el registro de usuario.', error);
     return { data: null, error: DEFAULT_ERROR_MESSAGE };
+  }
+}
+
+export async function checkEmailAvailability(email: string): Promise<AvailabilityResult> {
+  try {
+    const parsedEmail = emailSchema.parse(email);
+
+    try {
+      const userExists = await authUserExists(parsedEmail.toLowerCase());
+
+      if (userExists) {
+        return { available: false, error: FAILURE_MESSAGES.EMAIL_IN_USE };
+      }
+
+      return { available: true, error: null };
+    } catch (serviceError) {
+      console.error('No se pudo verificar la disponibilidad del correo.', serviceError);
+      return { available: false, error: DEFAULT_ERROR_MESSAGE };
+    }
+  } catch (validationError) {
+    if (validationError instanceof z.ZodError) {
+      return { available: false, error: normaliseZodError(validationError.issues) };
+    }
+
+    console.error('Error inesperado al validar la disponibilidad del correo.', validationError);
+    return { available: false, error: DEFAULT_ERROR_MESSAGE };
   }
 }
 

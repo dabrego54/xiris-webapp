@@ -9,6 +9,7 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { checkEmailAvailability } from "@/app/actions/auth.actions"
 import { ensureProfileContactInfo } from "@/app/actions/profile.actions"
 import { GoogleAuthDialog } from "@/components/auth/google-auth-dialog"
 import { Button } from "@/components/ui/button"
@@ -106,6 +107,13 @@ export default function RegisterPage(): JSX.Element {
         typeof window !== "undefined"
           ? `${window.location.origin}/auth/callback?redirect_to=${encodeURIComponent(redirectPath)}`
           : undefined
+
+      const { available, error: availabilityError } = await checkEmailAvailability(email)
+
+      if (!available) {
+        toast.error(availabilityError ?? "Este correo ya está registrado. Intenta iniciar sesión.")
+        return
+      }
 
       const { data, error } = await supabase.auth.signUp({
         email,
