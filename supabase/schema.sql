@@ -27,6 +27,16 @@ CREATE TABLE IF NOT EXISTS public.service_requests (
     updated_at timestamptz DEFAULT now()
 );
 
+-- Ensure post-match lifecycle columns exist for ongoing services
+ALTER TABLE public.service_requests
+    ADD COLUMN IF NOT EXISTS started_at timestamptz NULL,
+    ADD COLUMN IF NOT EXISTS completed_at timestamptz NULL,
+    ADD COLUMN IF NOT EXISTS cancelled_at timestamptz NULL,
+    ADD COLUMN IF NOT EXISTS cancel_reason text NULL;
+
+-- Document the expected service request statuses without altering existing values
+COMMENT ON COLUMN public.service_requests.status IS 'Expected statuses include: requested, searching, candidate_ready, accepted, on_route, in_progress, completed, cancelled.';
+
 CREATE TABLE IF NOT EXISTS public.technician_status (
     technician_id uuid PRIMARY KEY REFERENCES public.profiles (id) ON DELETE CASCADE,
     is_online boolean NOT NULL DEFAULT false,
