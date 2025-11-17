@@ -94,7 +94,7 @@ export default function RegisterPage(): JSX.Element {
     try {
       const email = values.email.trim()
       const fullName = values.full_name.trim()
-      const phone = values.phone.trim()
+      const phone = values.phone?.trim() ?? ""
       const userType = values.user_type
       const contactInfo: ContactInfo = {
         fullName,

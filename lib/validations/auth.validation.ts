@@ -83,9 +83,11 @@ export const signUpSchema = z
       required_error: 'Debes seleccionar un tipo de usuario.',
       invalid_type_error: 'Selecciona un tipo de usuario válido.',
     }),
-    terms: z.literal(true, {
-      errorMap: () => ({ message: 'Debes aceptar los términos y condiciones.' }),
-    }),
+    terms: z
+      .boolean({ required_error: 'Debes aceptar los términos y condiciones.' })
+      .refine((value) => value, {
+        message: 'Debes aceptar los términos y condiciones.',
+      }),
   })
   .superRefine((data, ctx) => {
     if (data.password !== data.confirmPassword) {

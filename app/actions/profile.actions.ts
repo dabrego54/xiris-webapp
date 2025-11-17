@@ -74,7 +74,7 @@ export async function ensureProfileContactInfo(
 
     const { error: insertError } = await supabase
       .from("profiles")
-      .insert(payload)
+      .insert(payload as never)
 
     if (insertError) {
       console.error("No se pudo crear el perfil al asegurar la información de contacto.", insertError)
@@ -90,7 +90,7 @@ export async function ensureProfileContactInfo(
 
   const { error: updateError } = await supabase
     .from("profiles")
-    .update(updates)
+    .update(updates as never)
     .eq("id", user.id)
 
   if (updateError) {
