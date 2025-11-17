@@ -213,28 +213,37 @@ async function authUserExists(email: string): Promise<boolean> {
     );
   }
 
-  const url = new URL('/rest/v1/auth.users', supabaseUrl);
-  url.searchParams.set('select', 'id');
-  url.searchParams.set('limit', '1');
-  url.searchParams.set('email', `eq.${email}`);
+  const url = new URL('/auth/v1/admin/users', supabaseUrl);
+  url.searchParams.set('email', email.toLowerCase());
+  url.searchParams.set('per_page', '1');
+  url.searchParams.set('page', '1');
 
   const response = await fetch(url.toString(), {
     headers: {
       apikey: serviceRoleKey,
       Authorization: `Bearer ${serviceRoleKey}`,
       Accept: 'application/json',
-      'Accept-Profile': 'auth',
     },
     cache: 'no-store',
   });
 
   if (!response.ok) {
     const details = await response.text();
-    throw new Error(`auth.users lookup failed with status ${response.status}: ${details}`);
+    throw new Error(`auth.admin users lookup failed with status ${response.status}: ${details}`);
   }
 
-  const users = (await response.json()) as Array<{ id: string }>;
-  return users.length > 0;
+  const payload = (await response.json()) as
+    | Array<{ email?: string | null }>
+    | { users?: Array<{ email?: string | null }> };
+
+  const users = Array.isArray(payload) ? payload : Array.isArray(payload.users) ? payload.users : [];
+
+  if (!users || users.length === 0) {
+    return false;
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  return users.some((user) => typeof user.email === 'string' && user.email.trim().toLowerCase() === normalizedEmail);
 }
 
 function toNumber(value: unknown, fallback: number): number {
