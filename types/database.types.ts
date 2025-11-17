@@ -41,6 +41,9 @@ export type ServiceRequestStatus =
   | 'searching'
   | 'candidate_ready'
   | 'accepted'
+  | 'on_route'
+  | 'in_progress'
+  | 'completed'
   | 'cancelled';
 
 /**
@@ -118,6 +121,8 @@ export interface ServiceRequest {
   problem_description: string | null;
   location_lat: number | null;
   location_lng: number | null;
+  started_at: string | null;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 }
