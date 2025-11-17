@@ -11,8 +11,13 @@ type TechServiceResponse = {
   completedAt: string | null;
 };
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
-  const serviceRequestId = params.id;
+type RouteContext = {
+  params: Promise<{ id: string }> | { id: string };
+};
+
+export async function GET(_request: Request, context: RouteContext) {
+  const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+  const serviceRequestId = resolvedParams.id;
 
   if (!serviceRequestId) {
     return NextResponse.json({ error: 'Missing service request id.' }, { status: 400 });

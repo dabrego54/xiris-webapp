@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Loader2, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -14,9 +15,17 @@ interface OffersPanelProps {
 
 const POLLING_INTERVAL_MS = 6000;
 
+type ActiveServiceResponse = {
+  serviceRequestId: string;
+  status: string;
+  problemDescription: string | null;
+  clientLocation: { lat: number | null; lng: number | null };
+  startedAt: string | null;
+};
+
 export function OffersPanel({ initialStatus }: OffersPanelProps) {
   const [latestOffer, setLatestOffer] = useState<TechnicianOfferResponse | null>(null);
-  const [acceptedOffer, setAcceptedOffer] = useState<TechnicianOfferResponse | null>(null);
+  const [activeService, setActiveService] = useState<ActiveServiceResponse | null>(null);
   const [isBusy, setIsBusy] = useState(initialStatus === 'busy');
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
@@ -24,10 +33,35 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
   const [error, setError] = useState<string | null>(null);
 
   const hasOffer = Boolean(latestOffer);
-  const isAwaitingClientConfirmation = Boolean(acceptedOffer);
+
+  const fetchActiveService = useCallback(async () => {
+    try {
+      const response = await fetch('/api/tech/service/active', { cache: 'no-store' });
+
+      if (!response.ok) {
+        throw new Error('No se pudo cargar el servicio activo.');
+      }
+
+      const payload = (await response.json()) as { service: ActiveServiceResponse | null };
+      setActiveService(payload.service);
+
+      if (!payload.service) {
+        setIsBusy(initialStatus === 'busy');
+        return null;
+      }
+
+      setIsBusy(true);
+      setError(null);
+      return payload.service;
+    } catch (err) {
+      console.error('No se pudo leer el servicio activo del técnico.', err);
+      setError('No se pudo leer el servicio activo del técnico.');
+      return null;
+    }
+  }, [initialStatus]);
 
   const fetchLatestOffer = useCallback(async () => {
-    if (isBusy) {
+    if (isBusy || activeService) {
       setIsLoading(false);
       return;
     }
@@ -63,24 +97,26 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [isBusy]);
-
-  useEffect(() => {
-    if (!isBusy) {
-      setAcceptedOffer(null);
-    }
-  }, [isBusy]);
+  }, [activeService, isBusy]);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
 
     const poll = async () => {
+      setIsLoading(true);
+      const service = await fetchActiveService();
+
+      if (service) {
+        setIsLoading(false);
+        return;
+      }
+
       await fetchLatestOffer();
     };
 
-    poll();
+    void poll();
     intervalId = setInterval(() => {
-      void fetchLatestOffer();
+      void poll();
     }, POLLING_INTERVAL_MS);
 
     return () => {
@@ -88,7 +124,7 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
         clearInterval(intervalId);
       }
     };
-  }, [fetchLatestOffer]);
+  }, [fetchActiveService, fetchLatestOffer]);
 
   const handleAccept = useCallback(async () => {
     if (!latestOffer) {
@@ -114,8 +150,8 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
       if (payload.ok) {
         toast.success('Servicio asignado');
         setIsBusy(true);
-        setAcceptedOffer(latestOffer);
         setLatestOffer(null);
+        await fetchActiveService();
         return;
       }
 
@@ -159,7 +195,6 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
 
       toast.message('Oferta rechazada');
       setLatestOffer(null);
-      setAcceptedOffer(null);
       await fetchLatestOffer();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo rechazar la oferta.';
@@ -170,8 +205,12 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
   }, [fetchLatestOffer, latestOffer]);
 
   const statusLabel = useMemo(() => {
-    if (isAwaitingClientConfirmation) {
-      return 'Esperando la confirmación del cliente.';
+    if (activeService) {
+      if (activeService.status === 'candidate_ready') {
+        return 'Servicio asignado. Espera la confirmación del cliente.';
+      }
+
+      return 'Tienes un servicio activo en curso.';
     }
 
     if (isBusy) {
@@ -187,7 +226,7 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
     }
 
     return 'Mantente online para recibir solicitudes cercanas.';
-  }, [error, hasOffer, isAwaitingClientConfirmation, isBusy]);
+  }, [activeService, error, hasOffer, isBusy]);
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm">
@@ -204,28 +243,41 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
         ) : null}
       </div>
 
-      {isAwaitingClientConfirmation && acceptedOffer ? (
+      {activeService ? (
         <div className="space-y-4 rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-amber-500">
-              Esperando confirmación del cliente
+              {activeService.status === 'candidate_ready'
+                ? 'Esperando confirmación del cliente'
+                : 'Servicio activo'}
             </p>
             <p className="text-lg font-semibold text-slate-900">
-              {acceptedOffer.problemDescription || 'Servicio asignado'}
+              {activeService.problemDescription || 'Servicio asignado'}
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Te avisaremos cuando el cliente confirme para iniciar el servicio.
+              {activeService.status === 'candidate_ready'
+                ? 'Te avisaremos cuando el cliente confirme para iniciar el servicio.'
+                : 'Ingresa al detalle del servicio para comenzar o continuar el trabajo.'}
             </p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <MapPin className="h-4 w-4 text-amber-500" aria-hidden />
+          {activeService.clientLocation.lat !== null && activeService.clientLocation.lng !== null ? (
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <MapPin className="h-4 w-4 text-amber-500" aria-hidden />
+              <span>
+                Lat {activeService.clientLocation.lat.toFixed(4)} · Lng {activeService.clientLocation.lng.toFixed(4)}
+              </span>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
             <span>
-              Lat {acceptedOffer.location.lat.toFixed(4)} · Lng {acceptedOffer.location.lng.toFixed(4)}
+              ID de solicitud: <span className="font-mono">{activeService.serviceRequestId}</span>
             </span>
+            <Button asChild size="sm">
+              <Link href={`/tech/service/${activeService.serviceRequestId}`} prefetch={false}>
+                Ver servicio activo
+              </Link>
+            </Button>
           </div>
-          <p className="text-xs text-slate-500">
-            ID de solicitud: <span className="font-mono">{acceptedOffer.serviceRequestId}</span>
-          </p>
         </div>
       ) : isBusy ? (
         <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-sm text-slate-600">

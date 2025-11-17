@@ -30,7 +30,7 @@ export type MapViewportProps = {
   renderBottomControls?: (controls: MapViewportControlProps) => ReactNode
 }
 
-type LeafletModule = {
+export type LeafletModule = {
   map: (element: HTMLElement, options?: unknown) => any
   tileLayer: (template: string, options?: unknown) => any
   layerGroup: () => any
@@ -61,7 +61,7 @@ const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
 
 let leafletLoader: Promise<LeafletModule | undefined> | null = null
 
-function ensureLeaflet(): Promise<LeafletModule | undefined> {
+export function ensureLeaflet(): Promise<LeafletModule | undefined> {
   if (leafletLoader) {
     return leafletLoader
   }
