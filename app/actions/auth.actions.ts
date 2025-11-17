@@ -12,7 +12,6 @@ import {
 
 import { AUTH_REVALIDATE_PATHS } from '@/app/actions/auth.config';
 import { createClient } from '@/lib/supabase/server';
-import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { SupabaseDatabase } from '@/lib/supabase/types';
 import type {
   AvailabilityStatus,
@@ -205,18 +204,37 @@ function toStringArray(value: unknown): string[] | undefined {
 }
 
 async function authUserExists(email: string): Promise<boolean> {
-  const serviceRoleClient = getSupabaseServiceRoleClient();
-  const { data, error } = await serviceRoleClient.auth.admin.listUsers({
-    page: 1,
-    perPage: 1,
-    email,
-  });
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (error) {
-    throw error;
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error(
+      'Supabase service role credentials are not configured. Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set.'
+    );
   }
 
-  return (data?.users?.length ?? 0) > 0;
+  const url = new URL('/rest/v1/auth.users', supabaseUrl);
+  url.searchParams.set('select', 'id');
+  url.searchParams.set('limit', '1');
+  url.searchParams.set('email', `eq.${email}`);
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      Accept: 'application/json',
+      'Accept-Profile': 'auth',
+    },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`auth.users lookup failed with status ${response.status}: ${details}`);
+  }
+
+  const users = (await response.json()) as Array<{ id: string }>;
+  return users.length > 0;
 }
 
 function toNumber(value: unknown, fallback: number): number {
