@@ -108,17 +108,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No autorizado.' }, { status: 401 });
     }
 
-    const { error } = await supabase.from('technician_status').upsert({
-      technician_id: user.id,
-      is_online: payload.isOnline,
-      current_status: payload.currentStatus,
-      current_lat: payload.lat,
-      current_lng: payload.lng,
-    });
+    const { data: existingStatus, error: fetchStatusError } = await supabase
+      .from('technician_status')
+      .select('technician_id')
+      .eq('technician_id', user.id)
+      .maybeSingle();
 
-    if (error) {
-      console.error('Unable to update technician_status.', error);
+    if (fetchStatusError) {
+      console.error('Unable to read technician_status row.', fetchStatusError);
       return NextResponse.json({ error: 'No se pudo guardar el estado.' }, { status: 500 });
+    }
+
+    if (existingStatus) {
+      const { error: updateError } = await supabase
+        .from('technician_status')
+        .update({
+          is_online: payload.isOnline,
+          current_status: payload.currentStatus,
+          current_lat: payload.lat,
+          current_lng: payload.lng,
+        })
+        .eq('technician_id', user.id);
+
+      if (updateError) {
+        console.error('Unable to update technician_status.', updateError);
+        return NextResponse.json({ error: 'No se pudo guardar el estado.' }, { status: 500 });
+      }
+    } else {
+      const { error: insertError } = await supabase.from('technician_status').insert({
+        technician_id: user.id,
+        is_online: payload.isOnline,
+        current_status: payload.currentStatus,
+        current_lat: payload.lat,
+        current_lng: payload.lng,
+      });
+
+      if (insertError) {
+        console.error('Unable to create technician_status row.', insertError);
+        return NextResponse.json({ error: 'No se pudo guardar el estado.' }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ ok: true });
