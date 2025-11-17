@@ -78,6 +78,8 @@ type PublicSchema = GenericSchema & {
         | 'problem_description'
         | 'location_lat'
         | 'location_lng'
+        | 'started_at'
+        | 'completed_at'
         | 'created_at'
         | 'updated_at'
       >;
