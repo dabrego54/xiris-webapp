@@ -12,6 +12,7 @@ import {
 
 import { AUTH_REVALIDATE_PATHS } from '@/app/actions/auth.config';
 import { createClient } from '@/lib/supabase/server';
+import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { SupabaseDatabase } from '@/lib/supabase/types';
 import type {
   AvailabilityStatus,
@@ -154,6 +155,11 @@ const FAILURE_MESSAGES: Record<string, string> = {
 
 interface ActionResult<TData> {
   data: TData;
+  error: string | null;
+}
+
+interface AvailabilityResult {
+  available: boolean;
   error: string | null;
 }
 
@@ -570,6 +576,42 @@ export async function signUp(data: SignUpData): Promise<ActionResult<User | null
 
     console.error('Error inesperado durante el registro de usuario.', error);
     return { data: null, error: DEFAULT_ERROR_MESSAGE };
+  }
+}
+
+export async function checkEmailAvailability(email: string): Promise<AvailabilityResult> {
+  try {
+    const parsedEmail = emailSchema.parse(email);
+
+    try {
+      const serviceClient = getSupabaseServiceRoleClient();
+      const { data, error } = await serviceClient.auth.admin.getUserByEmail(parsedEmail);
+
+      if (error && error instanceof AuthApiError && error.status === 404) {
+        return { available: true, error: null };
+      }
+
+      if (error) {
+        console.error('No se pudo verificar la disponibilidad del correo.', error);
+        return { available: false, error: DEFAULT_ERROR_MESSAGE };
+      }
+
+      if (data?.user) {
+        return { available: false, error: FAILURE_MESSAGES.EMAIL_IN_USE };
+      }
+
+      return { available: true, error: null };
+    } catch (serviceError) {
+      console.error('No se pudo inicializar el cliente service role de Supabase.', serviceError);
+      return { available: false, error: DEFAULT_ERROR_MESSAGE };
+    }
+  } catch (validationError) {
+    if (validationError instanceof z.ZodError) {
+      return { available: false, error: normaliseZodError(validationError.issues) };
+    }
+
+    console.error('Error inesperado al validar la disponibilidad del correo.', validationError);
+    return { available: false, error: DEFAULT_ERROR_MESSAGE };
   }
 }
 
