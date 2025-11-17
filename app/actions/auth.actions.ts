@@ -12,7 +12,6 @@ import {
 
 import { AUTH_REVALIDATE_PATHS } from '@/app/actions/auth.config';
 import { createClient } from '@/lib/supabase/server';
-import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { SupabaseDatabase } from '@/lib/supabase/types';
 import type {
   AvailabilityStatus,
@@ -202,6 +201,40 @@ function toStringArray(value: unknown): string[] | undefined {
   }
 
   return undefined;
+}
+
+async function authUserExists(email: string): Promise<boolean> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error(
+      'Supabase service role credentials are not configured. Ensure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set.'
+    );
+  }
+
+  const endpoint = new URL('/rest/v1/auth.users', supabaseUrl);
+  endpoint.searchParams.set('select', 'id');
+  endpoint.searchParams.set('email', `eq.${email}`);
+  endpoint.searchParams.set('limit', '1');
+
+  const response = await fetch(endpoint, {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      Accept: 'application/json',
+    },
+    cache: 'no-store',
+    next: { revalidate: 0 },
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`auth.users lookup failed with status ${response.status}: ${details}`);
+  }
+
+  const users = (await response.json()) as Array<{ id: string }>;
+  return users.length > 0;
 }
 
 function toNumber(value: unknown, fallback: number): number {
@@ -584,25 +617,15 @@ export async function checkEmailAvailability(email: string): Promise<Availabilit
     const parsedEmail = emailSchema.parse(email);
 
     try {
-      const serviceClient = getSupabaseServiceRoleClient();
-      const { data, error } = await serviceClient.auth.admin.getUserByEmail(parsedEmail);
+      const userExists = await authUserExists(parsedEmail.toLowerCase());
 
-      if (error && error instanceof AuthApiError && error.status === 404) {
-        return { available: true, error: null };
-      }
-
-      if (error) {
-        console.error('No se pudo verificar la disponibilidad del correo.', error);
-        return { available: false, error: DEFAULT_ERROR_MESSAGE };
-      }
-
-      if (data?.user) {
+      if (userExists) {
         return { available: false, error: FAILURE_MESSAGES.EMAIL_IN_USE };
       }
 
       return { available: true, error: null };
     } catch (serviceError) {
-      console.error('No se pudo inicializar el cliente service role de Supabase.', serviceError);
+      console.error('No se pudo verificar la disponibilidad del correo.', serviceError);
       return { available: false, error: DEFAULT_ERROR_MESSAGE };
     }
   } catch (validationError) {
