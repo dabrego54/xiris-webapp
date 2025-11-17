@@ -79,7 +79,7 @@ export default async function TechServicePage({ params }: TechServicePageProps) 
 
   return (
     <AppShell>
-      <div className="flex min-h-screen flex-col bg-slate-50">
+      <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-slate-50">
         <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
           <TechServiceView {...viewProps} />
         </div>
