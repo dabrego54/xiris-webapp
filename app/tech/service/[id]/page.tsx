@@ -6,9 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import TechServiceView, { type TechServiceViewProps } from '../TechServiceView';
 
 type TechServicePageProps = {
-  params: {
-    id: string;
-  };
+  params: Promise<{ id: string }> | { id: string };
 };
 
 type ServiceRequestRow = {
@@ -28,7 +26,8 @@ export const metadata: Metadata = {
 };
 
 export default async function TechServicePage({ params }: TechServicePageProps) {
-  const serviceRequestId = params.id;
+  const resolvedParams = params instanceof Promise ? await params : params;
+  const serviceRequestId = resolvedParams.id;
   const supabase = await createClient();
   const {
     data: { user },
