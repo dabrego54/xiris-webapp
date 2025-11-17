@@ -25,8 +25,8 @@ export const metadata: Metadata = {
   title: 'Servicio activo',
 };
 
-export default async function TechServicePage({ params }: TechServicePageProps) {
-  const resolvedParams = params instanceof Promise ? await params : params;
+export default async function TechServicePage({ params: routeParams }: TechServicePageProps) {
+  const resolvedParams = routeParams instanceof Promise ? await routeParams : routeParams;
   const serviceRequestId = resolvedParams.id;
   const supabase = await createClient();
   const {
