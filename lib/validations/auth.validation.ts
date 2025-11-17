@@ -1,10 +1,10 @@
 import { z } from 'zod';
 
 /**
- * Regular expression that validates Chilean mobile numbers with spaces:
- * "+56 9 1234 5678".
+ * Regular expression that validates Chilean mobile numbers either with or without spaces:
+ * "+56 9 1234 5678" or "+56912345678".
  */
-const CHILEAN_PHONE_REGEX = /^\+56\s9\s\d{4}\s\d{4}$/;
+const CHILEAN_PHONE_REGEX = /^\+56\s?9\s?\d{4}\s?\d{4}$/;
 
 /**
  * Regular expression validating names with spaces and accented characters.
@@ -77,15 +77,17 @@ export const signUpSchema = z
       .string()
       .optional()
       .refine((value) => !value || isChileanPhone(value), {
-        message: 'Ingresa un número con el formato +56 9 XXXX XXXX.',
+        message: 'Ingresa un número con el formato +56 9 XXXX XXXX o +569XXXXXXXX.',
       }),
     user_type: z.enum(['cliente', 'tecnico'], {
       required_error: 'Debes seleccionar un tipo de usuario.',
       invalid_type_error: 'Selecciona un tipo de usuario válido.',
     }),
-    terms: z.literal(true, {
-      errorMap: () => ({ message: 'Debes aceptar los términos y condiciones.' }),
-    }),
+    terms: z
+      .boolean({ required_error: 'Debes aceptar los términos y condiciones.' })
+      .refine((value) => value, {
+        message: 'Debes aceptar los términos y condiciones.',
+      }),
   })
   .superRefine((data, ctx) => {
     if (data.password !== data.confirmPassword) {
@@ -133,7 +135,7 @@ export const updateProfileSchema = z
       .optional(),
     phone: z
       .string()
-      .refine(isChileanPhone, { message: 'Ingresa un número con el formato +56 9 XXXX XXXX.' })
+      .refine(isChileanPhone, { message: 'Ingresa un número con el formato +56 9 XXXX XXXX o +569XXXXXXXX.' })
       .optional(),
     avatar_url: z
       .string()

@@ -15,9 +15,12 @@ import { createClient } from '@/lib/supabase/server';
 import type { SupabaseDatabase } from '@/lib/supabase/types';
 import type {
   AvailabilityStatus,
+  ClientProfile,
   DatabaseProfile,
+  Profile,
   SignInData,
   SignUpData,
+  TechnicianProfile,
   UpdateProfileData,
   UserStatus,
   UserType,
@@ -494,6 +497,8 @@ async function fetchProfile(
     return null;
   }
 
+  const profile: Profile = data;
+
   const [
     { data: technicianProfile, error: technicianError },
     { data: clientProfile, error: clientError },
@@ -510,10 +515,13 @@ async function fetchProfile(
     console.error('No se pudo obtener el perfil de cliente relacionado.', clientError);
   }
 
+  const resolvedTechnicianProfile = technicianError ? undefined : technicianProfile ?? undefined;
+  const resolvedClientProfile = clientError ? undefined : clientProfile ?? undefined;
+
   return {
-    ...data,
-    technician_profile: technicianError ? undefined : technicianProfile ?? undefined,
-    client_profile: clientError ? undefined : clientProfile ?? undefined,
+    ...profile,
+    technician_profile: resolvedTechnicianProfile as TechnicianProfile | undefined,
+    client_profile: resolvedClientProfile as ClientProfile | undefined,
   } satisfies DatabaseProfile;
 }
 
@@ -764,9 +772,17 @@ export async function updateProfile(
     let shouldPersistMetadata = false;
 
     if (parsed.profile) {
+      const profileUpdates: SupabaseDatabase['public']['Tables']['profiles']['Update'] = {
+        ...parsed.profile,
+        updated_at: new Date().toISOString(),
+      };
+
       const { error } = await supabase
         .from('profiles')
-        .update({ ...parsed.profile, updated_at: new Date().toISOString() })
+        // Supabase's type helpers currently narrow this call to `never` when using our
+        // handcrafted database definition. Casting keeps runtime behaviour intact
+        // while avoiding false positive build failures.
+        .update(profileUpdates as never)
         .eq('id', parsed.id);
 
       if (error) {
@@ -798,7 +814,7 @@ export async function updateProfile(
     if (parsed.technician_profile) {
       const { error } = await supabase
         .from('technician_profiles')
-        .upsert({ id: parsed.id, ...parsed.technician_profile }, { onConflict: 'id' });
+        .upsert({ id: parsed.id, ...parsed.technician_profile } as never, { onConflict: 'id' });
 
       if (error) {
         if (error.code === 'PGRST205') {
@@ -818,7 +834,7 @@ export async function updateProfile(
     if (parsed.client_profile) {
       const { error } = await supabase
         .from('client_profiles')
-        .upsert({ id: parsed.id, ...parsed.client_profile }, { onConflict: 'id' });
+        .upsert({ id: parsed.id, ...parsed.client_profile } as never, { onConflict: 'id' });
 
       if (error) {
         if (error.code === 'PGRST205') {

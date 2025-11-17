@@ -7,12 +7,13 @@ import techniciansData from "@/data/technicians.json"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 
-export default function ServicioPage({
-  params,
-}: {
-  params: { id: string }
-}) {
-  const technician = techniciansData.find((t) => t.id === params.id)
+type ServicioPageProps = {
+  params: Promise<{ id: string }>
+}
+
+export default async function ServicioPage({ params }: ServicioPageProps) {
+  const { id } = await params
+  const technician = techniciansData.find((t) => t.id === id)
 
   if (!technician) {
     notFound()

@@ -82,19 +82,22 @@ async function fetchApplications({
   }
 
   return {
-    applications: data ?? [],
+    applications: (data ?? []) as TechnicianApplication[],
     count: count ?? 0,
   };
 }
 
+type AdminTechniciansPageProps = {
+  searchParams?: Promise<PageSearchParams>;
+};
+
 export default async function AdminTechniciansPage({
-  searchParams = {},
-}: {
-  searchParams?: PageSearchParams;
-}) {
-  const status = (searchParams.status ?? 'all') as TechnicianStatusFilter;
-  const search = searchParams.search?.toString() ?? '';
-  const page = Math.max(1, Number(searchParams.page ?? '1') || 1);
+  searchParams,
+}: AdminTechniciansPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const status = (resolvedSearchParams.status ?? 'all') as TechnicianStatusFilter;
+  const search = resolvedSearchParams.search?.toString() ?? '';
+  const page = Math.max(1, Number(resolvedSearchParams.page ?? '1') || 1);
 
   const { applications, count } = await fetchApplications({ status, search, page });
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));

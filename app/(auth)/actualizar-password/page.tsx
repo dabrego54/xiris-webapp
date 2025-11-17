@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Eye, EyeOff, Loader2, Lock } from "lucide-react"
@@ -61,6 +61,14 @@ function calculatePasswordStrength(password: string): PasswordStrengthResult {
 }
 
 export default function UpdatePasswordPage(): JSX.Element {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Cargando…</div>}>
+      <UpdatePasswordPageContent />
+    </Suspense>
+  )
+}
+
+function UpdatePasswordPageContent(): JSX.Element {
   const router = useRouter()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()

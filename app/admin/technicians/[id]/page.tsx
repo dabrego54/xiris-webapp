@@ -3,20 +3,24 @@ import { notFound } from 'next/navigation';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createClient } from '@/lib/supabase/server';
+import type { TechnicianApplication } from '@/types/database.types';
 import TechnicianApplicationDetail from './technician-application-detail';
+
+type TechnicianApplicationPageProps = {
+  params: Promise<{ id: string }>;
+};
 
 export default async function TechnicianApplicationPage({
   params,
-}: {
-  params: { id: string };
-}) {
+}: TechnicianApplicationPageProps) {
+  const { id } = await params;
   const supabase = await createClient();
 
   const { data: application, error } = await supabase
     .from('technician_applications')
     .select('*')
-    .eq('id', params.id)
-    .single();
+    .eq('id', id)
+    .single<TechnicianApplication>();
 
   if (error || !application) {
     console.error('Error fetching application detail', error);

@@ -59,6 +59,8 @@ export interface Profile {
   avatar_url: string | null;
   /** User role that determines available functionality within the app. */
   user_type: UserType;
+  /** Legacy role metadata stored in the profile record. */
+  role?: string | null;
   /** Current account status reflecting onboarding or suspension state. */
   status: UserStatus;
   /** ISO string recording when the profile was created. */
