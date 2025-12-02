@@ -46,7 +46,7 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
       setActiveService(payload.service);
 
       if (!payload.service) {
-        setIsBusy(initialStatus === 'busy');
+        setIsBusy(false);
         return null;
       }
 
@@ -257,7 +257,7 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
             <p className="mt-1 text-sm text-slate-500">
               {activeService.status === 'candidate_ready'
                 ? 'Te avisaremos cuando el cliente confirme para iniciar el servicio.'
-                : 'Ingresa al detalle del servicio para comenzar o continuar el trabajo.'}
+                : 'Ingresa al detalle del servicio para comenzar, avanzar o cancelar el trabajo.'}
             </p>
           </div>
           {activeService.clientLocation.lat !== null && activeService.clientLocation.lng !== null ? (
@@ -272,11 +272,13 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
             <span>
               ID de solicitud: <span className="font-mono">{activeService.serviceRequestId}</span>
             </span>
-            <Button asChild size="sm">
-              <Link href={`/tech/service/${activeService.serviceRequestId}`} prefetch={false}>
-                Ver servicio activo
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm">
+                <Link href={`/tech/service/${activeService.serviceRequestId}`} prefetch={false}>
+                  Ver servicio activo
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
       ) : isBusy ? (

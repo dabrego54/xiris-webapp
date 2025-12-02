@@ -133,7 +133,7 @@ export default async function TechDashboardPage() {
                 </span>
               </div>
               <div className="mt-6">
-                <AvailabilityToggle initialStatus={currentStatus} />
+                <AvailabilityToggle initialStatus={currentStatus} initialIsOnline={isOnline} />
               </div>
             </section>
 

@@ -8,6 +8,7 @@ import type { TechnicianPresenceStatus } from '@/types/database.types';
 
 interface AvailabilityToggleProps {
   initialStatus: TechnicianPresenceStatus;
+  initialIsOnline: boolean;
 }
 
 async function requestLocation(): Promise<GeolocationPosition> {
@@ -24,12 +25,12 @@ async function requestLocation(): Promise<GeolocationPosition> {
   });
 }
 
-export function AvailabilityToggle({ initialStatus }: AvailabilityToggleProps) {
+export function AvailabilityToggle({ initialStatus, initialIsOnline }: AvailabilityToggleProps) {
   const [status, setStatus] = useState<TechnicianPresenceStatus>(initialStatus);
+  const [isOnline, setIsOnline] = useState<boolean>(initialIsOnline || initialStatus !== 'offline');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isOnline = status !== 'offline';
   const statusLabel = status === 'available' ? 'Disponible' : status === 'busy' ? 'Ocupado' : 'Offline';
 
   const handleToggle = useCallback(
@@ -70,6 +71,7 @@ export function AvailabilityToggle({ initialStatus }: AvailabilityToggleProps) {
         }
 
         setStatus(nextStatus);
+        setIsOnline(checked);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'No se pudo actualizar la disponibilidad.';
         setError(message);
