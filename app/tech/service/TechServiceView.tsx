@@ -172,6 +172,7 @@ export default function TechServiceView(initialData: TechServiceViewProps) {
       }));
       router.refresh();
       setSuccessMessage('Servicio cancelado. Ya puedes tomar otra solicitud.');
+      router.push('/tech/dashboard');
     } catch (error) {
       console.error(error);
       setErrorMessage(error instanceof Error ? error.message : 'No se pudo cancelar el servicio.');

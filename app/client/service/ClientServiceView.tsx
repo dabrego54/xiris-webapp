@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Clock3, Mail, Navigation, Star, User } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Clock3, Mail, Navigation, Star, User } from 'lucide-react'
 
 import type { LeafletModule } from '@/components/MapViewport'
 import { ensureLeaflet } from '@/components/MapViewport'
@@ -24,13 +24,14 @@ export type ClientServiceViewProps = {
   completedAt: string | null
 }
 
-export type ServiceStatus = 'accepted' | 'on_route' | 'in_progress' | 'completed'
+export type ServiceStatus = 'accepted' | 'on_route' | 'in_progress' | 'completed' | 'cancelled'
 
 const STATUS_LABELS: Record<ServiceStatus, string> = {
   accepted: 'Técnico asignado, esperando que inicie el trayecto',
   on_route: 'Técnico en camino',
   in_progress: 'Servicio en curso',
   completed: 'Servicio completado',
+  cancelled: 'Servicio cancelado por el técnico',
 }
 
 const POLLING_INTERVAL_MS = 8000
@@ -103,6 +104,18 @@ export default function ClientServiceView(initialData: ClientServiceViewProps) {
         </div>
       </header>
 
+      {service.status === 'cancelled' ? (
+        <div className="flex items-start gap-3 rounded-3xl border border-rose-200 bg-rose-50/80 p-4 shadow-sm">
+          <AlertTriangle className="mt-0.5 h-5 w-5 text-rose-600" aria-hidden />
+          <div>
+            <p className="text-sm font-semibold text-rose-800">Servicio cancelado por el técnico</p>
+            <p className="text-sm text-rose-700">
+              Este servicio no se completará. Si aún necesitas ayuda, solicita un nuevo servicio desde el dashboard.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
         <div className="space-y-4">
           <ClientServiceMap clientLocation={service.location} technicianLocation={service.technicianLocation} />
@@ -155,6 +168,12 @@ export default function ClientServiceView(initialData: ClientServiceViewProps) {
             {service.status === 'completed' ? (
               <div className="mt-4 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                 <Star className="h-4 w-4" aria-hidden /> Servicio completado
+              </div>
+            ) : null}
+
+            {service.status === 'cancelled' ? (
+              <div className="mt-4 inline-flex items-center gap-1 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
+                <AlertTriangle className="h-4 w-4" aria-hidden /> Servicio cancelado
               </div>
             ) : null}
           </div>
