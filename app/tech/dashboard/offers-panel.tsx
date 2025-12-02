@@ -30,7 +30,6 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
-  const [isCancelling, setIsCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const hasOffer = Boolean(latestOffer);
@@ -126,39 +125,6 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
       }
     };
   }, [fetchActiveService, fetchLatestOffer]);
-
-  const handleCancel = useCallback(async () => {
-    if (!activeService) return;
-
-    setIsCancelling(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/tech/service/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ serviceRequestId: activeService.serviceRequestId }),
-      });
-
-      const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-
-      if (!response.ok || !payload.ok) {
-        const message = payload.error || 'No se pudo cancelar el servicio.';
-        throw new Error(message);
-      }
-
-      toast.message('Servicio cancelado');
-      setActiveService(null);
-      setIsBusy(false);
-      await fetchLatestOffer();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo cancelar el servicio.';
-      toast.error(message);
-      setError(message);
-    } finally {
-      setIsCancelling(false);
-    }
-  }, [activeService, fetchLatestOffer]);
 
   const handleAccept = useCallback(async () => {
     if (!latestOffer) {
@@ -291,7 +257,7 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
             <p className="mt-1 text-sm text-slate-500">
               {activeService.status === 'candidate_ready'
                 ? 'Te avisaremos cuando el cliente confirme para iniciar el servicio.'
-                : 'Ingresa al detalle del servicio para comenzar o continuar el trabajo.'}
+                : 'Ingresa al detalle del servicio para comenzar, avanzar o cancelar el trabajo.'}
             </p>
           </div>
           {activeService.clientLocation.lat !== null && activeService.clientLocation.lng !== null ? (
@@ -311,16 +277,6 @@ export function OffersPanel({ initialStatus }: OffersPanelProps) {
                 <Link href={`/tech/service/${activeService.serviceRequestId}`} prefetch={false}>
                   Ver servicio activo
                 </Link>
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="destructive"
-                onClick={handleCancel}
-                disabled={isCancelling}
-              >
-                {isCancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
-                Cancelar servicio
               </Button>
             </div>
           </div>

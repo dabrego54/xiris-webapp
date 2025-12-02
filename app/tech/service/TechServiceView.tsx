@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, Loader2, MapPin, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, MapPin, RefreshCw, XCircle } from 'lucide-react';
 
 import TechServiceMap from './TechServiceMap';
 
@@ -70,6 +70,7 @@ export default function TechServiceView(initialData: TechServiceViewProps) {
   const [service, setService] = useState<ServiceSnapshot>(initialData);
   const [actionLoading, setActionLoading] = useState(false);
   const [locationUpdating, setLocationUpdating] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -146,6 +147,38 @@ export default function TechServiceView(initialData: TechServiceViewProps) {
       setActionLoading(false);
     }
   }, [actionConfig, refreshService, router, service.serviceRequestId]);
+
+  const handleCancel = useCallback(async () => {
+    setCancelling(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch('/api/tech/service/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serviceRequestId: service.serviceRequestId }),
+      });
+
+      const body = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+
+      if (!response.ok || !body.ok) {
+        throw new Error(body.error ?? 'No se pudo cancelar el servicio.');
+      }
+
+      setService((current) => ({
+        ...current,
+        status: 'cancelled',
+      }));
+      router.refresh();
+      setSuccessMessage('Servicio cancelado. Ya puedes tomar otra solicitud.');
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudo cancelar el servicio.');
+    } finally {
+      setCancelling(false);
+    }
+  }, [router, service.serviceRequestId]);
 
   const handleUpdateLocation = useCallback(() => {
     if (!navigator.geolocation) {
@@ -249,7 +282,7 @@ export default function TechServiceView(initialData: TechServiceViewProps) {
               <button
                 type="button"
                 onClick={handleAction}
-                disabled={actionLoading}
+                disabled={actionLoading || service.status === 'cancelled'}
                 className="inline-flex w-full items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
               >
                 {actionLoading ? (
@@ -258,6 +291,25 @@ export default function TechServiceView(initialData: TechServiceViewProps) {
                   </>
                 ) : (
                   actionConfig.label
+                )}
+              </button>
+            ) : null}
+
+            {service.status !== 'completed' && service.status !== 'cancelled' ? (
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="inline-flex w-full items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-base font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {cancelling ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden /> Cancelando...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="mr-2 h-5 w-5" aria-hidden /> Cancelar servicio
+                  </>
                 )}
               </button>
             ) : null}

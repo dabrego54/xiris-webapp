@@ -3,8 +3,12 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { ServiceRequestStatus } from '@/types/database.types';
 
-const RELEASABLE_STATUSES: ServiceRequestStatus[] = ['candidate_ready', 'accepted'];
-const CANCELABLE_STATUSES: ServiceRequestStatus[] = ['on_route', 'in_progress'];
+const CANCELABLE_STATUSES: ServiceRequestStatus[] = [
+  'candidate_ready',
+  'accepted',
+  'on_route',
+  'in_progress',
+];
 
 type CancelPayload = {
   serviceRequestId?: string;
@@ -60,21 +64,14 @@ export async function POST(request: Request) {
     }
 
     const status = serviceRequest.status as ServiceRequestStatus;
-    let updates: Partial<{ status: ServiceRequestStatus; assigned_technician_id: string | null }> | null = null;
 
-    if (RELEASABLE_STATUSES.includes(status)) {
-      updates = { status: 'searching', assigned_technician_id: null };
-    } else if (CANCELABLE_STATUSES.includes(status)) {
-      updates = { status: 'cancelled', assigned_technician_id: null };
-    }
-
-    if (!updates) {
+    if (!CANCELABLE_STATUSES.includes(status)) {
       return NextResponse.json({ error: 'El servicio no puede cancelarse en este estado.' }, { status: 400 });
     }
 
     const { error: updateError } = await supabase
       .from('service_requests')
-      .update(updates)
+      .update({ status: 'cancelled', assigned_technician_id: null })
       .eq('id', payload.serviceRequestId);
 
     if (updateError) {
