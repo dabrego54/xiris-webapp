@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-
 import AppShell from "@/components/AppShell"
 import MapViewportWithFloatingControls from "@/components/MapViewportWithFloatingControls"
 
@@ -52,6 +51,8 @@ export default function DashboardPage() {
   const [requestStatus, setRequestStatus] = useState<RequestStatus>("idle")
   const [technicianCandidate, setTechnicianCandidate] = useState<TechnicianCandidate | null>(null)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [serviceLocation, setServiceLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [technicianLocation, setTechnicianLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isRequestingTechnician, setIsRequestingTechnician] = useState(false)
   const [isCandidateActionLoading, setIsCandidateActionLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -69,13 +70,25 @@ export default function DashboardPage() {
       case "candidate_ready":
         return "Técnico encontrado"
       case "accepted":
-        return "Técnico en camino"
+        return "Ver detalle del servicio"
       default:
         return "Buscar técnico"
     }
   }, [requestStatus])
 
-  const ctaDisabled = !canRequestTechnician || isRequestingTechnician
+  const ctaHref = requestStatus === "accepted" && currentServiceRequestId ? `/client/service/${currentServiceRequestId}` : undefined
+  const ctaOnClick =
+    !currentServiceRequestId && canRequestTechnician && !isRequestingTechnician ? handleCreateRequest : undefined
+  const ctaDisabled =
+    Boolean(ctaHref) || ctaOnClick
+      ? false
+      : requestStatus !== "accepted" || isRequestingTechnician || !canRequestTechnician
+
+  const effectiveClientLocation = userLocation ?? serviceLocation
+  const isTrackingRoute = requestStatus === "accepted" && Boolean(technicianLocation)
+  const routeDestination = technicianLocation
+    ? { ...technicianLocation, label: technicianCandidate?.fullName ?? "Técnico asignado" }
+    : null
 
   const handleLocationUpdate = useCallback((location: { lat: number; lng: number } | null) => {
     setUserLocation(location)
@@ -109,6 +122,8 @@ export default function DashboardPage() {
       setCurrentServiceRequestId(payload.serviceRequestId)
       setRequestStatus("searching")
       setTechnicianCandidate(null)
+      setServiceLocation(userLocation)
+      setTechnicianLocation(null)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo crear la solicitud.")
     } finally {
@@ -127,6 +142,8 @@ export default function DashboardPage() {
       if (response.status === 404) {
         setCurrentServiceRequestId(null)
         setTechnicianCandidate(null)
+        setTechnicianLocation(null)
+        setServiceLocation(null)
         setRequestStatus("idle")
         return
       }
@@ -140,11 +157,63 @@ export default function DashboardPage() {
       setRequestStatus(payload.status as RequestStatus)
       setTechnicianCandidate(payload.technicianCandidate ?? null)
 
+      const nextServiceLocation =
+        typeof payload?.location?.lat === "number" && typeof payload.location?.lng === "number"
+          ? ({ lat: payload.location.lat, lng: payload.location.lng } as const)
+          : null
+
+      if (nextServiceLocation) {
+        setServiceLocation(nextServiceLocation)
+      }
+
+      if (payload.technicianLocation) {
+        const nextTechnicianLocation =
+          typeof payload.technicianLocation?.lat === "number" && typeof payload.technicianLocation?.lng === "number"
+            ? ({ lat: payload.technicianLocation.lat, lng: payload.technicianLocation.lng } as const)
+            : null
+
+        setTechnicianLocation(nextTechnicianLocation)
+      }
+
       if (payload.status === "cancelled") {
         setCurrentServiceRequestId(null)
+        setTechnicianLocation(null)
+        setServiceLocation(null)
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo actualizar la solicitud.")
+    }
+  }, [currentServiceRequestId])
+
+  const refreshServiceTracking = useCallback(async () => {
+    if (!currentServiceRequestId) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/client/service/${currentServiceRequestId}`, { cache: "no-store" })
+
+      if (!response.ok) {
+        throw new Error("No se pudo actualizar la ubicación del técnico.")
+      }
+
+      const payload = await response.json().catch(() => null)
+
+      const nextServiceLocation =
+        typeof payload?.location?.lat === "number" && typeof payload.location?.lng === "number"
+          ? ({ lat: payload.location.lat, lng: payload.location.lng } as const)
+          : null
+
+      const nextTechnicianLocation =
+        typeof payload?.technicianLocation?.lat === "number" &&
+        typeof payload.technicianLocation?.lng === "number"
+          ? ({ lat: payload.technicianLocation.lat, lng: payload.technicianLocation.lng } as const)
+          : null
+
+      setServiceLocation(nextServiceLocation)
+      setTechnicianLocation(nextTechnicianLocation)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo actualizar la ubicación del técnico.")
     }
   }, [currentServiceRequestId])
 
@@ -161,6 +230,20 @@ export default function DashboardPage() {
 
     return () => clearInterval(interval)
   }, [currentServiceRequestId, refreshServiceRequest])
+
+  useEffect(() => {
+    if (!currentServiceRequestId || requestStatus !== "accepted") {
+      return
+    }
+
+    void refreshServiceTracking()
+
+    const interval = setInterval(() => {
+      void refreshServiceTracking()
+    }, POLLING_INTERVAL_MS)
+
+    return () => clearInterval(interval)
+  }, [currentServiceRequestId, refreshServiceTracking, requestStatus])
 
   const handleAcceptTechnician = useCallback(async () => {
     if (!currentServiceRequestId || requestStatus !== "candidate_ready") {
@@ -226,8 +309,12 @@ export default function DashboardPage() {
       <div className="relative h-full w-full">
         <MapViewportWithFloatingControls
           ctaLabel={ctaLabel}
-          ctaOnClick={canRequestTechnician ? handleCreateRequest : undefined}
+          ctaHref={ctaHref}
+          ctaOnClick={ctaOnClick}
           ctaDisabled={ctaDisabled}
+          manualUserLocation={effectiveClientLocation}
+          showRoute={isTrackingRoute}
+          routeDestination={routeDestination}
           onUserLocationChange={handleLocationUpdate}
         />
 
