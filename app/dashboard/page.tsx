@@ -6,7 +6,16 @@ import MapViewportWithFloatingControls from "@/components/MapViewportWithFloatin
 
 const POLLING_INTERVAL_MS = 6000
 
-type RequestStatus = "idle" | "requested" | "searching" | "candidate_ready" | "accepted" | "cancelled"
+type RequestStatus =
+  | "idle"
+  | "requested"
+  | "searching"
+  | "candidate_ready"
+  | "accepted"
+  | "on_route"
+  | "in_progress"
+  | "completed"
+  | "cancelled"
 
 type TechnicianCandidate = {
   id: string
@@ -57,7 +66,8 @@ export default function DashboardPage() {
   const [isCandidateActionLoading, setIsCandidateActionLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const canRequestTechnician = Boolean(userLocation) && (requestStatus === "idle" || requestStatus === "cancelled")
+  const canRequestTechnician =
+    Boolean(userLocation) && (requestStatus === "idle" || requestStatus === "cancelled" || requestStatus === "completed")
 
   const handleLocationUpdate = useCallback((location: { lat: number; lng: number } | null) => {
     setUserLocation(location)
@@ -111,22 +121,25 @@ export default function DashboardPage() {
       case "candidate_ready":
         return "Técnico encontrado"
       case "accepted":
+      case "on_route":
+      case "in_progress":
+      case "completed":
         return "Ver detalle del servicio"
       default:
         return "Buscar técnico"
     }
   }, [requestStatus])
 
-  const ctaHref = requestStatus === "accepted" && currentServiceRequestId ? `/client/service/${currentServiceRequestId}` : undefined
+  const hasDetailLink =
+    currentServiceRequestId && ["accepted", "on_route", "in_progress", "completed"].includes(requestStatus)
+  const ctaHref = hasDetailLink && currentServiceRequestId ? `/client/service/${currentServiceRequestId}` : undefined
   const ctaOnClick =
-    !currentServiceRequestId && canRequestTechnician && !isRequestingTechnician ? handleCreateRequest : undefined
-  const ctaDisabled =
-    Boolean(ctaHref) || ctaOnClick
-      ? false
-      : requestStatus !== "accepted" || isRequestingTechnician || !canRequestTechnician
+    !hasDetailLink && canRequestTechnician && !isRequestingTechnician ? handleCreateRequest : undefined
+  const ctaDisabled = Boolean(ctaHref) ? false : !ctaOnClick
 
   const effectiveClientLocation = userLocation ?? serviceLocation
-  const isTrackingRoute = requestStatus === "accepted" && Boolean(technicianLocation)
+  const isTrackingRoute =
+    ["accepted", "on_route", "in_progress"].includes(requestStatus) && Boolean(technicianLocation)
   const routeDestination = technicianLocation
     ? { ...technicianLocation, label: technicianCandidate?.fullName ?? "Técnico asignado" }
     : null
@@ -162,23 +175,23 @@ export default function DashboardPage() {
           ? ({ lat: payload.location.lat, lng: payload.location.lng } as const)
           : null
 
-      if (nextServiceLocation) {
-        setServiceLocation(nextServiceLocation)
-      }
+      setServiceLocation(nextServiceLocation)
 
-      if (payload.technicianLocation) {
-        const nextTechnicianLocation =
-          typeof payload.technicianLocation?.lat === "number" && typeof payload.technicianLocation?.lng === "number"
-            ? ({ lat: payload.technicianLocation.lat, lng: payload.technicianLocation.lng } as const)
-            : null
+      const nextTechnicianLocation =
+        typeof payload?.technicianLocation?.lat === "number" && typeof payload.technicianLocation?.lng === "number"
+          ? ({ lat: payload.technicianLocation.lat, lng: payload.technicianLocation.lng } as const)
+          : null
 
-        setTechnicianLocation(nextTechnicianLocation)
-      }
+      setTechnicianLocation(nextTechnicianLocation)
 
       if (payload.status === "cancelled") {
         setCurrentServiceRequestId(null)
         setTechnicianLocation(null)
         setServiceLocation(null)
+      }
+
+      if (payload.status === "completed") {
+        setTechnicianLocation(null)
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo actualizar la solicitud.")
@@ -210,12 +223,87 @@ export default function DashboardPage() {
           ? ({ lat: payload.technicianLocation.lat, lng: payload.technicianLocation.lng } as const)
           : null
 
+      setRequestStatus((payload?.status as RequestStatus | undefined) ?? requestStatus)
       setServiceLocation(nextServiceLocation)
       setTechnicianLocation(nextTechnicianLocation)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo actualizar la ubicación del técnico.")
     }
   }, [currentServiceRequestId])
+
+  useEffect(() => {
+    const restoreActiveService = async () => {
+      const storedServiceRequestId = localStorage.getItem("activeServiceRequestId")
+
+      if (storedServiceRequestId) {
+        setCurrentServiceRequestId(storedServiceRequestId)
+      }
+
+      try {
+        const response = await fetch("/api/client/request/active", { cache: "no-store" })
+        const payload = await response.json().catch(() => null)
+
+        if (!response.ok) {
+          return
+        }
+
+        if (!payload?.service) {
+          setCurrentServiceRequestId(null)
+          setTechnicianCandidate(null)
+          setTechnicianLocation(null)
+          setServiceLocation(null)
+          setRequestStatus("idle")
+          return
+        }
+
+        const activeService = payload.service as {
+          id: string
+          status: RequestStatus
+          location: { lat: number | null; lng: number | null } | null
+          technicianCandidate?: TechnicianCandidate | null
+          technicianLocation?: { lat: number | null; lng: number | null } | null
+        }
+
+        setCurrentServiceRequestId(activeService.id)
+        setRequestStatus(activeService.status)
+
+        const nextServiceLocation =
+          typeof activeService.location?.lat === "number" && typeof activeService.location?.lng === "number"
+            ? ({ lat: activeService.location.lat, lng: activeService.location.lng } as const)
+            : null
+
+        if (nextServiceLocation) {
+          setServiceLocation(nextServiceLocation)
+        }
+
+        if (activeService.technicianCandidate) {
+          setTechnicianCandidate(activeService.technicianCandidate)
+        }
+
+        if (
+          typeof activeService.technicianLocation?.lat === "number" &&
+          typeof activeService.technicianLocation?.lng === "number"
+        ) {
+          setTechnicianLocation({
+            lat: activeService.technicianLocation.lat,
+            lng: activeService.technicianLocation.lng,
+          })
+        }
+      } catch (error) {
+        console.error("No se pudo restaurar el servicio activo", error)
+      }
+    }
+
+    void restoreActiveService()
+  }, [])
+
+  useEffect(() => {
+    if (currentServiceRequestId && requestStatus !== "cancelled" && requestStatus !== "completed") {
+      localStorage.setItem("activeServiceRequestId", currentServiceRequestId)
+    } else {
+      localStorage.removeItem("activeServiceRequestId")
+    }
+  }, [currentServiceRequestId, requestStatus])
 
   useEffect(() => {
     if (!currentServiceRequestId) {
@@ -232,7 +320,10 @@ export default function DashboardPage() {
   }, [currentServiceRequestId, refreshServiceRequest])
 
   useEffect(() => {
-    if (!currentServiceRequestId || requestStatus !== "accepted") {
+    if (
+      !currentServiceRequestId ||
+      !["accepted", "on_route", "in_progress"].includes(requestStatus)
+    ) {
       return
     }
 
