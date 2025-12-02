@@ -62,6 +62,10 @@ export default function DashboardPage() {
   const canRequestTechnician = Boolean(userLocation) && (requestStatus === "idle" || requestStatus === "cancelled")
 
   const ctaLabel = useMemo(() => {
+    if (currentServiceRequestId && requestStatus !== "cancelled") {
+      return "Ver detalle del servicio"
+    }
+
     switch (requestStatus) {
       case "idle":
       case "cancelled":
@@ -76,12 +80,12 @@ export default function DashboardPage() {
       default:
         return "Buscar técnico"
     }
-  }, [requestStatus])
+  }, [currentServiceRequestId, requestStatus])
 
-  const ctaDisabled = !canRequestTechnician || isRequestingTechnician
+  const ctaDisabled = Boolean(currentServiceRequestId) ? false : !canRequestTechnician || isRequestingTechnician
 
   const effectiveClientLocation = userLocation ?? serviceLocation
-  const isTrackingRoute = requestStatus === "accepted" && Boolean(technicianLocation)
+  const isTrackingRoute = Boolean(technicianLocation)
   const routeDestination = technicianLocation
     ? { ...technicianLocation, label: technicianCandidate?.fullName ?? "Técnico asignado" }
     : null
@@ -152,6 +156,24 @@ export default function DashboardPage() {
 
       setRequestStatus(payload.status as RequestStatus)
       setTechnicianCandidate(payload.technicianCandidate ?? null)
+
+      const nextServiceLocation =
+        typeof payload?.location?.lat === "number" && typeof payload.location?.lng === "number"
+          ? ({ lat: payload.location.lat, lng: payload.location.lng } as const)
+          : null
+
+      if (nextServiceLocation) {
+        setServiceLocation(nextServiceLocation)
+      }
+
+      if (payload.technicianLocation) {
+        const nextTechnicianLocation =
+          typeof payload.technicianLocation?.lat === "number" && typeof payload.technicianLocation?.lng === "number"
+            ? ({ lat: payload.technicianLocation.lat, lng: payload.technicianLocation.lng } as const)
+            : null
+
+        setTechnicianLocation(nextTechnicianLocation)
+      }
 
       if (payload.status === "cancelled") {
         setCurrentServiceRequestId(null)
@@ -287,7 +309,8 @@ export default function DashboardPage() {
       <div className="relative h-full w-full">
         <MapViewportWithFloatingControls
           ctaLabel={ctaLabel}
-          ctaOnClick={canRequestTechnician ? handleCreateRequest : undefined}
+          ctaHref={currentServiceRequestId ? `/client/service/${currentServiceRequestId}` : undefined}
+          ctaOnClick={!currentServiceRequestId && canRequestTechnician ? handleCreateRequest : undefined}
           ctaDisabled={ctaDisabled}
           manualUserLocation={effectiveClientLocation}
           showRoute={isTrackingRoute}

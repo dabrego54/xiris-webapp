@@ -175,6 +175,7 @@ export default function MapViewport({
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null)
   const [geolocationError, setGeolocationError] = useState<string | null>(null)
+  const [addressLabel, setAddressLabel] = useState<string | null>(null)
 
   const selectedTechnician = useMemo(
     () => technicians.find((technician) => technician.id === selectedTechnicianId),
@@ -188,9 +189,15 @@ export default function MapViewport({
       return
     }
 
-    setUserLocation([manualUserLocation.lat, manualUserLocation.lng])
-    setLocationAccuracy(null)
-    hasCenteredOnUserRef.current = false
+    setUserLocation((previous) => {
+      if (previous) {
+        return previous
+      }
+
+      setLocationAccuracy(null)
+      hasCenteredOnUserRef.current = false
+      return [manualUserLocation.lat, manualUserLocation.lng]
+    })
   }, [manualUserLocation])
 
   useEffect(() => {
@@ -273,8 +280,64 @@ export default function MapViewport({
 
   useEffect(() => {
     if (!userLocation) {
+      setAddressLabel(null)
       return
     }
+
+    const controller = new AbortController()
+    const { signal } = controller
+
+    const [lat, lng] = userLocation
+
+    const url = new URL("https://nominatim.openstreetmap.org/reverse")
+    url.searchParams.set("format", "jsonv2")
+    url.searchParams.set("lat", lat.toString())
+    url.searchParams.set("lon", lng.toString())
+    url.searchParams.set("zoom", "18")
+    url.searchParams.set("addressdetails", "1")
+
+    fetch(url.toString(), {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "xiris-webapp-client/1.0",
+      },
+      signal,
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!data || signal.aborted) {
+          return
+        }
+
+        const detailParts: string[] = []
+
+        if (typeof data.address?.road === "string") {
+          detailParts.push(data.address.road)
+        }
+        if (typeof data.address?.suburb === "string") {
+          detailParts.push(data.address.suburb)
+        }
+        if (typeof data.address?.city === "string") {
+          detailParts.push(data.address.city)
+        } else if (typeof data.address?.town === "string") {
+          detailParts.push(data.address.town)
+        }
+        if (typeof data.address?.state === "string") {
+          detailParts.push(data.address.state)
+        }
+
+        const displayName = detailParts.length > 0 ? detailParts.join(", ") : data.display_name
+
+        setAddressLabel(displayName ?? null)
+      })
+      .catch(() => {
+        if (!signal.aborted) {
+          setAddressLabel(null)
+        }
+      })
+
+    return () => controller.abort()
+  }, [userLocation])
 
     ensureLeaflet().then((L) => {
       if (!L || !mapRef.current) {
@@ -486,7 +549,18 @@ export default function MapViewport({
           <div className="flex items-start gap-2">
             <MapPin className="mt-0.5 h-4 w-4 text-purple-600" />
             <div className="text-xs text-gray-600">
-              {userLocation && !geolocationError && <p className="font-semibold text-gray-900">Ubicación detectada</p>}
+              {userLocation && !geolocationError && (
+                <div className="space-y-1">
+                  <p className="font-semibold text-gray-900">Ubicación detectada</p>
+                  <p className="text-[11px] text-gray-500">
+                    Lat {userLocation[0].toFixed(5)}, Lng {userLocation[1].toFixed(5)}
+                  </p>
+                  {addressLabel && <p className="text-[11px] text-gray-500">{addressLabel}</p>}
+                  {typeof locationAccuracy === "number" && (
+                    <p className="text-[11px] text-gray-400">Precisión ±{Math.round(locationAccuracy)} m</p>
+                  )}
+                </div>
+              )}
               {!userLocation && !geolocationError && <p>Obteniendo tu ubicación en tiempo real…</p>}
               {geolocationError && <p>{geolocationError}</p>}
             </div>
