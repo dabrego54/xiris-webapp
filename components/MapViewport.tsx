@@ -339,6 +339,11 @@ export default function MapViewport({
     return () => controller.abort()
   }, [userLocation])
 
+  useEffect(() => {
+    if (!userLocation) {
+      return
+    }
+
     ensureLeaflet().then((L) => {
       if (!L || !mapRef.current) {
         return
