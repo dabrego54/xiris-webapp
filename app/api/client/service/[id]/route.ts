@@ -14,7 +14,7 @@ type ServiceResponse = {
     | {
         id: string;
         fullName: string | null;
-        email: string;
+        email: string | null;
       };
   technicianLocation:
     | null
@@ -24,8 +24,8 @@ type ServiceResponse = {
       };
 };
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
-  const serviceRequestId = params.id;
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id: serviceRequestId } = await context.params;
 
   if (!serviceRequestId) {
     return NextResponse.json({ error: 'Missing service request id.' }, { status: 400 });
@@ -71,14 +71,14 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       const [{ data: profile, error: profileError }, { data: locationData, error: locationError }] = await Promise.all([
         supabase
           .from('profiles')
-          .select('id, full_name, email')
+          .select('id, full_name')
           .eq('id', serviceRequest.assigned_technician_id)
-          .single(),
+          .maybeSingle(),
         supabase
           .from('technician_status')
           .select('current_lat, current_lng')
           .eq('technician_id', serviceRequest.assigned_technician_id)
-          .single(),
+          .maybeSingle(),
       ]);
 
       if (profileError) {
@@ -87,11 +87,11 @@ export async function GET(_request: Request, { params }: { params: { id: string 
         technician = {
           id: profile.id,
           fullName: profile.full_name,
-          email: profile.email,
+          email: 'email' in profile ? (profile as { email: string | null }).email : null,
         };
       }
 
-      if (locationError) {
+      if (locationError && locationError.code !== 'PGRST116') {
         console.warn('Unable to load technician location.', locationError);
       } else if (
         locationData &&

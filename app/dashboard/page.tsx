@@ -59,37 +59,6 @@ export default function DashboardPage() {
 
   const canRequestTechnician = Boolean(userLocation) && (requestStatus === "idle" || requestStatus === "cancelled")
 
-  const ctaLabel = useMemo(() => {
-    switch (requestStatus) {
-      case "idle":
-      case "cancelled":
-        return "Buscar técnico"
-      case "searching":
-      case "requested":
-        return "Buscando técnicos…"
-      case "candidate_ready":
-        return "Técnico encontrado"
-      case "accepted":
-        return "Ver detalle del servicio"
-      default:
-        return "Buscar técnico"
-    }
-  }, [requestStatus])
-
-  const ctaHref = requestStatus === "accepted" && currentServiceRequestId ? `/client/service/${currentServiceRequestId}` : undefined
-  const ctaOnClick =
-    !currentServiceRequestId && canRequestTechnician && !isRequestingTechnician ? handleCreateRequest : undefined
-  const ctaDisabled =
-    Boolean(ctaHref) || ctaOnClick
-      ? false
-      : requestStatus !== "accepted" || isRequestingTechnician || !canRequestTechnician
-
-  const effectiveClientLocation = userLocation ?? serviceLocation
-  const isTrackingRoute = requestStatus === "accepted" && Boolean(technicianLocation)
-  const routeDestination = technicianLocation
-    ? { ...technicianLocation, label: technicianCandidate?.fullName ?? "Técnico asignado" }
-    : null
-
   const handleLocationUpdate = useCallback((location: { lat: number; lng: number } | null) => {
     setUserLocation(location)
   }, [])
@@ -130,6 +99,37 @@ export default function DashboardPage() {
       setIsRequestingTechnician(false)
     }
   }, [canRequestTechnician, userLocation])
+
+  const ctaLabel = useMemo(() => {
+    switch (requestStatus) {
+      case "idle":
+      case "cancelled":
+        return "Buscar técnico"
+      case "searching":
+      case "requested":
+        return "Buscando técnicos…"
+      case "candidate_ready":
+        return "Técnico encontrado"
+      case "accepted":
+        return "Ver detalle del servicio"
+      default:
+        return "Buscar técnico"
+    }
+  }, [requestStatus])
+
+  const ctaHref = requestStatus === "accepted" && currentServiceRequestId ? `/client/service/${currentServiceRequestId}` : undefined
+  const ctaOnClick =
+    !currentServiceRequestId && canRequestTechnician && !isRequestingTechnician ? handleCreateRequest : undefined
+  const ctaDisabled =
+    Boolean(ctaHref) || ctaOnClick
+      ? false
+      : requestStatus !== "accepted" || isRequestingTechnician || !canRequestTechnician
+
+  const effectiveClientLocation = userLocation ?? serviceLocation
+  const isTrackingRoute = requestStatus === "accepted" && Boolean(technicianLocation)
+  const routeDestination = technicianLocation
+    ? { ...technicianLocation, label: technicianCandidate?.fullName ?? "Técnico asignado" }
+    : null
 
   const refreshServiceRequest = useCallback(async () => {
     if (!currentServiceRequestId) {
