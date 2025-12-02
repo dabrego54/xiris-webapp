@@ -25,6 +25,8 @@ export type MapViewportProps = {
   showTechnicians?: boolean
   showRoute?: boolean
   eta?: string
+  manualUserLocation?: { lat: number; lng: number } | null
+  routeDestination?: { lat: number; lng: number; label?: string } | null
   selectedTechnicianId?: string
   onUserLocationChange?: (location: { lat: number; lng: number } | null) => void
   renderBottomControls?: (controls: MapViewportControlProps) => ReactNode
@@ -151,6 +153,8 @@ export default function MapViewport({
   showTechnicians = false,
   showRoute = false,
   eta,
+  manualUserLocation,
+  routeDestination,
   selectedTechnicianId,
   onUserLocationChange,
   renderBottomControls,
@@ -176,6 +180,18 @@ export default function MapViewport({
     () => technicians.find((technician) => technician.id === selectedTechnicianId),
     [selectedTechnicianId]
   )
+
+  const destinationLabel = routeDestination?.label ?? selectedTechnician?.name ?? "Técnico asignado"
+
+  useEffect(() => {
+    if (!manualUserLocation) {
+      return
+    }
+
+    setUserLocation([manualUserLocation.lat, manualUserLocation.lng])
+    setLocationAccuracy(null)
+    hasCenteredOnUserRef.current = false
+  }, [manualUserLocation])
 
   useEffect(() => {
     let isMounted = true
@@ -383,7 +399,12 @@ export default function MapViewport({
         return
       }
 
-      if (!showRoute) {
+      const destinationLatLng =
+        typeof routeDestination?.lat === "number" && typeof routeDestination?.lng === "number"
+          ? ([routeDestination.lat, routeDestination.lng] as [number, number])
+          : selectedTechnician?.location
+
+      if (!showRoute || !destinationLatLng || !userLocation) {
         routeLayerRef.current.clearLayers()
         routeLineRef.current = null
         routeDestinationRef.current = null
@@ -391,13 +412,7 @@ export default function MapViewport({
         return
       }
 
-      const destination = selectedTechnician ?? technicians[0]
-      if (!destination?.location) {
-        return
-      }
-
-      const origin = userLocation ?? DEFAULT_CENTER
-      const destinationLatLng: [number, number] = [destination.location.lat, destination.location.lng]
+      const origin = userLocation
 
       if (!routeLineRef.current) {
         routeLayerRef.current.clearLayers()
@@ -430,7 +445,7 @@ export default function MapViewport({
       routeOriginRef.current?.setLatLng(origin)
       routeDestinationRef.current?.setLatLng(destinationLatLng)
     })
-  }, [selectedTechnician, showRoute, userLocation])
+  }, [routeDestination, selectedTechnician, showRoute, userLocation])
 
   const handleCenter = useCallback(() => {
     if (!mapRef.current || !userLocation) {
@@ -478,10 +493,10 @@ export default function MapViewport({
           </div>
         </div>
 
-        {selectedTechnician && showRoute && (
+        {(selectedTechnician || routeDestination) && showRoute && (
           <div className="pointer-events-auto rounded-2xl bg-white/90 px-4 py-3 text-xs shadow-lg backdrop-blur">
-            <p className="font-semibold text-gray-900">{selectedTechnician.name}</p>
-            {selectedTechnician.distance && (
+            <p className="font-semibold text-gray-900">{destinationLabel}</p>
+            {selectedTechnician?.distance && (
               <p className="text-gray-500">A {selectedTechnician.distance}</p>
             )}
           </div>
@@ -496,8 +511,8 @@ export default function MapViewport({
               <span>{eta}</span>
               <span className="text-xs font-normal text-gray-500">ETA</span>
             </div>
-            {selectedTechnician && (
-              <p className="mt-1 text-xs text-gray-500">Rumbo a {selectedTechnician.name}</p>
+            {showRoute && destinationLabel && (
+              <p className="mt-1 text-xs text-gray-500">Rumbo a {destinationLabel}</p>
             )}
           </div>
         </div>
