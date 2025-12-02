@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { createClient } from '@/lib/supabase/server';
+import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { ServiceRequestStatus } from '@/types/database.types';
 
 const CANCELABLE_STATUSES: ServiceRequestStatus[] = [
@@ -44,7 +45,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
     }
 
-    const { data: serviceRequest, error: fetchError } = await supabase
+    const serviceRoleClient = getSupabaseServiceRoleClient();
+
+    const { data: serviceRequest, error: fetchError } = await serviceRoleClient
       .from('service_requests')
       .select('id, status, assigned_technician_id')
       .eq('id', payload.serviceRequestId)
@@ -69,23 +72,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'El servicio no puede cancelarse en este estado.' }, { status: 400 });
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await serviceRoleClient
       .from('service_requests')
       .update({ status: 'cancelled', assigned_technician_id: null })
-      .eq('id', payload.serviceRequestId);
+      .eq('id', payload.serviceRequestId)
+      .eq('assigned_technician_id', user.id)
+      .in('status', CANCELABLE_STATUSES);
 
     if (updateError) {
       console.error('Unable to cancel service request.', updateError);
       return NextResponse.json({ error: 'Unable to cancel the service.' }, { status: 500 });
     }
 
-    const { error: statusError } = await supabase
-      .from('technician_status')
-      .upsert({
-        technician_id: user.id,
-        is_online: true,
-        current_status: 'available',
-      });
+    const { error: offersError } = await serviceRoleClient
+      .from('service_request_offers')
+      .update({ status: 'cancelled' })
+      .eq('service_request_id', payload.serviceRequestId)
+      .not('status', 'eq', 'cancelled');
+
+    if (offersError) {
+      console.error('Unable to cancel service offers.', offersError);
+    }
+
+    const { error: statusError } = await serviceRoleClient.from('technician_status').upsert({
+      technician_id: user.id,
+      is_online: true,
+      current_status: 'available',
+    });
 
     if (statusError) {
       console.error('Unable to reset technician_status after cancel.', statusError);
