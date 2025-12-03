@@ -521,7 +521,7 @@ export default function DashboardPage() {
                   onChange={(event) => setProblemDescription(event.target.value)}
                   rows={4}
                   className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                  placeholder="Ej: Fuga de agua en el baño, enchufe quemado, filtración en techo…"
+                  placeholder="Ej: Corte de fibra, red de oficina caída, servidor sin respuesta, equipo sin acceso a internet…"
                 />
                 {problemDescriptionError ? (
                   <p className="text-sm font-medium text-rose-600">{problemDescriptionError}</p>
