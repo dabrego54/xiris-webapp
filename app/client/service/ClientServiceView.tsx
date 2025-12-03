@@ -197,6 +197,14 @@ export default function ClientServiceView(initialData: ClientServiceViewProps) {
             <p className="mt-3 text-sm text-slate-700">
               Escríbenos si tienes dudas sobre tu servicio o necesitas ajustar la visita del técnico.
             </p>
+            {service.technician ? (
+              <Link
+                href={`/chat/${service.serviceRequestId}`}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-purple-700"
+              >
+                Abrir chat con {service.technician.fullName ?? "tu técnico"}
+              </Link>
+            ) : null}
           </div>
         </aside>
       </div>
