@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { createClient } from '@/lib/supabase/server';
+import { getSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 
 type ServiceResponse = {
   id: string;
@@ -14,7 +15,7 @@ type ServiceResponse = {
     | {
         id: string;
         fullName: string | null;
-        email: string;
+        email: string | null;
       };
   technicianLocation:
     | null
@@ -24,8 +25,8 @@ type ServiceResponse = {
       };
 };
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
-  const serviceRequestId = params.id;
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const { id: serviceRequestId } = await context.params;
 
   if (!serviceRequestId) {
     return NextResponse.json({ error: 'Missing service request id.' }, { status: 400 });
@@ -33,6 +34,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
   try {
     const supabase = await createClient();
+    const serviceRoleClient = getSupabaseServiceRoleClient();
     const {
       data: { user },
       error: authError,
@@ -47,7 +49,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
     }
 
-    const { data: serviceRequest, error: serviceError } = await supabase
+    const { data: serviceRequest, error: serviceError } = await serviceRoleClient
       .from('service_requests')
       .select(
         'id, status, problem_description, location_lat, location_lng, started_at, completed_at, client_id, assigned_technician_id'
@@ -69,16 +71,16 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 
     if (serviceRequest.assigned_technician_id) {
       const [{ data: profile, error: profileError }, { data: locationData, error: locationError }] = await Promise.all([
-        supabase
+        serviceRoleClient
           .from('profiles')
-          .select('id, full_name, email')
+          .select('id, full_name')
           .eq('id', serviceRequest.assigned_technician_id)
-          .single(),
-        supabase
+          .maybeSingle(),
+        serviceRoleClient
           .from('technician_status')
           .select('current_lat, current_lng')
           .eq('technician_id', serviceRequest.assigned_technician_id)
-          .single(),
+          .maybeSingle(),
       ]);
 
       if (profileError) {
@@ -87,11 +89,11 @@ export async function GET(_request: Request, { params }: { params: { id: string 
         technician = {
           id: profile.id,
           fullName: profile.full_name,
-          email: profile.email,
+          email: 'email' in profile ? (profile as { email: string | null }).email : null,
         };
       }
 
-      if (locationError) {
+      if (locationError && locationError.code !== 'PGRST116') {
         console.warn('Unable to load technician location.', locationError);
       } else if (
         locationData &&

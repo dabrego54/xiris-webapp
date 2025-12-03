@@ -40,6 +40,8 @@ type ServiceRequestResponse = {
   id: string;
   status: ServiceRequestStatus;
   technicianCandidate: TechnicianCandidatePayload | null;
+  location: { lat: number | null; lng: number | null } | null;
+  technicianLocation: { lat: number | null; lng: number | null } | null;
 };
 
 function formatDistanceLabel(
@@ -132,7 +134,7 @@ export async function GET(
 
     const { data: serviceRequest, error: serviceRequestError } = await serviceRoleClient
       .from('service_requests')
-      .select('id, client_id, status, location_lat, location_lng')
+      .select('id, client_id, status, location_lat, location_lng, assigned_technician_id')
       .eq('id', serviceRequestId)
       .maybeSingle();
 
@@ -159,6 +161,11 @@ export async function GET(
         id: serviceRequest.id,
         status: serviceRequest.status as ServiceRequestStatus,
         technicianCandidate: null,
+        location: {
+          lat: serviceRequest.location_lat,
+          lng: serviceRequest.location_lng,
+        },
+        technicianLocation: null,
       });
     }
 
@@ -230,6 +237,18 @@ export async function GET(
       id: serviceRequest.id,
       status: serviceRequest.status as ServiceRequestStatus,
       technicianCandidate,
+      location: {
+        lat: serviceRequest.location_lat,
+        lng: serviceRequest.location_lng,
+      },
+      technicianLocation:
+        technicianStatusResponse.data?.current_lat != null &&
+        technicianStatusResponse.data?.current_lng != null
+          ? {
+              lat: technicianStatusResponse.data.current_lat,
+              lng: technicianStatusResponse.data.current_lng,
+            }
+          : null,
     });
   } catch (error) {
     console.error('Error inesperado al consultar la solicitud.', error);
