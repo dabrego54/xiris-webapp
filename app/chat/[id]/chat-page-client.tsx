@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
 import AppShell from "@/components/AppShell"
 import ChatBubble from "@/components/ChatBubble"
 import ChatInput from "@/components/ChatInput"
+import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 
 export type ChatPageTechnician = {
   id: string
@@ -21,6 +22,7 @@ type Message = {
   sender: "user" | "technician"
   timestamp: string
   read: boolean
+  authorId?: string
 }
 
 type ChatPageClientProps = {
@@ -28,6 +30,8 @@ type ChatPageClientProps = {
 }
 
 export default function ChatPageClient({ technician }: ChatPageClientProps) {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), [])
+  const chatChannel = useMemo(() => supabase.channel(`chat-${technician.id}`), [supabase, technician.id])
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -44,19 +48,88 @@ export default function ChatPageClient({ technician }: ChatPageClientProps) {
       read: true,
     },
   ])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [participantRole, setParticipantRole] = useState<Message["sender"]>("user")
+  const currentUserIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const getSessionAndRole = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      const userId = session?.user.id ?? null
+      const userType = (session?.user.user_metadata?.user_type as string | undefined) ?? "cliente"
+      const derivedRole = userType === "tecnico" ? "technician" : "user"
+
+      setCurrentUserId(userId)
+      currentUserIdRef.current = userId
+      setParticipantRole(derivedRole)
+    }
+
+    void getSessionAndRole()
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const userId = session?.user?.id ?? null
+      const userType = (session?.user?.user_metadata?.user_type as string | undefined) ?? "cliente"
+      const derivedRole = userType === "tecnico" ? "technician" : "user"
+
+      setCurrentUserId(userId)
+      currentUserIdRef.current = userId
+      setParticipantRole(derivedRole)
+    })
+
+    return () => {
+      authListener?.subscription.unsubscribe()
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    const subscription = chatChannel.on(
+      "broadcast",
+      { event: "message" },
+      ({ payload }) => {
+        const incoming = payload as Message
+
+        if (incoming.authorId && incoming.authorId === currentUserIdRef.current) {
+          return
+        }
+
+        setMessages((prev) => {
+          const alreadyExists = prev.some((message) => message.id === incoming.id)
+          if (alreadyExists) return prev
+          return [...prev, incoming]
+        })
+      }
+    )
+
+    void chatChannel.subscribe()
+
+    return () => {
+      supabase.removeChannel(subscription)
+    }
+  }, [chatChannel, supabase])
 
   const handleSendMessage = (text: string) => {
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       text,
-      sender: "user",
+      sender: participantRole,
       timestamp: new Date().toLocaleTimeString("es-CL", {
         hour: "2-digit",
         minute: "2-digit",
       }),
-      read: false,
+      read: true,
+      authorId: currentUserId ?? "anon",
     }
+
     setMessages((prev) => [...prev, newMessage])
+
+    void chatChannel.send({
+      type: "broadcast",
+      event: "message",
+      payload: { ...newMessage, read: false },
+    })
   }
 
   return (
