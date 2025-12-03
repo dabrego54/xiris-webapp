@@ -29,7 +29,16 @@ export async function GET() {
       return NextResponse.json({ serviceRequestId: null }, { status: 200 })
     }
 
-    const isTechnician = user.user_metadata?.user_type === "tecnico"
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, user_type")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    const isTechnician =
+      user.user_metadata?.user_type === "tecnico" ||
+      profile?.role?.toLowerCase() === "technician" ||
+      profile?.user_type?.toLowerCase() === "tecnico"
 
     const { data: serviceRequest, error: serviceError } = await supabase
       .from("service_requests")
