@@ -63,6 +63,7 @@ export default function DashboardPage() {
   const [serviceLocation, setServiceLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [technicianLocation, setTechnicianLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isRequestingTechnician, setIsRequestingTechnician] = useState(false)
+  const [isCancellingTechnicianSearch, setIsCancellingTechnicianSearch] = useState(false)
   const [isCandidateActionLoading, setIsCandidateActionLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -110,6 +111,37 @@ export default function DashboardPage() {
     }
   }, [canRequestTechnician, userLocation])
 
+  const handleCancelRequest = useCallback(async () => {
+    if (!currentServiceRequestId || !["requested", "searching"].includes(requestStatus)) {
+      return
+    }
+
+    setIsCancellingTechnicianSearch(true)
+    setErrorMessage(null)
+
+    try {
+      const response = await fetch(`/api/client/request/${currentServiceRequestId}/cancel`, {
+        method: "POST",
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "No se pudo cancelar la búsqueda.")
+      }
+
+      setRequestStatus("cancelled")
+      setCurrentServiceRequestId(null)
+      setTechnicianCandidate(null)
+      setTechnicianLocation(null)
+      setServiceLocation(null)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo cancelar la búsqueda.")
+    } finally {
+      setIsCancellingTechnicianSearch(false)
+    }
+  }, [currentServiceRequestId, requestStatus])
+
   const ctaLabel = useMemo(() => {
     switch (requestStatus) {
       case "idle":
@@ -117,7 +149,7 @@ export default function DashboardPage() {
         return "Buscar técnico"
       case "searching":
       case "requested":
-        return "Buscando técnicos…"
+        return isCancellingTechnicianSearch ? "Cancelando búsqueda…" : "Cancelar búsqueda"
       case "candidate_ready":
         return "Técnico encontrado"
       case "accepted":
@@ -128,19 +160,25 @@ export default function DashboardPage() {
       default:
         return "Buscar técnico"
     }
-  }, [requestStatus])
+  }, [isCancellingTechnicianSearch, requestStatus])
 
   const hasDetailLink =
     currentServiceRequestId && ["accepted", "on_route", "in_progress", "completed"].includes(requestStatus)
   const ctaHref = hasDetailLink && currentServiceRequestId ? `/client/service/${currentServiceRequestId}` : undefined
   const ctaOnClick =
     !hasDetailLink &&
-    (requestStatus === "idle" || requestStatus === "cancelled" || requestStatus === "completed") &&
+    ((requestStatus === "idle" || requestStatus === "cancelled" || requestStatus === "completed") &&
     canRequestTechnician &&
     !isRequestingTechnician
       ? handleCreateRequest
-      : undefined
-  const ctaDisabled = Boolean(ctaHref) ? false : !ctaOnClick
+      : requestStatus === "requested" || requestStatus === "searching"
+        ? handleCancelRequest
+        : undefined)
+  const ctaDisabled = Boolean(ctaHref)
+    ? false
+    : requestStatus === "requested" || requestStatus === "searching"
+      ? isCancellingTechnicianSearch
+      : !ctaOnClick
 
   const effectiveClientLocation = userLocation ?? serviceLocation
   const isTrackingRoute =
