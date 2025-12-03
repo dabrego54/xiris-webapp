@@ -9,13 +9,6 @@ import ChatBubble from "@/components/ChatBubble"
 import ChatInput from "@/components/ChatInput"
 import { getSupabaseBrowserClient } from "@/lib/supabase/client"
 
-export type ChatPageTechnician = {
-  id: string
-  name: string
-  specialty: string
-  avatar?: string
-}
-
 type Message = {
   id: string
   text: string
@@ -25,31 +18,25 @@ type Message = {
   authorId?: string
 }
 
-type ChatPageClientProps = {
-  technician: ChatPageTechnician
+type ChatParticipant = {
+  id: string
+  name: string
+  avatar?: string
+  role: "user" | "technician"
 }
 
-export default function ChatPageClient({ technician }: ChatPageClientProps) {
+type ChatPageClientProps = {
+  serviceRequestId: string
+  counterpart: ChatParticipant | null
+  viewerRole: Message["sender"]
+}
+
+export default function ChatPageClient({ serviceRequestId, counterpart, viewerRole }: ChatPageClientProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), [])
-  const chatChannel = useMemo(() => supabase.channel(`chat-${technician.id}`), [supabase, technician.id])
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      text: "Hola, Juan voy en camino, llego en 5 minutos.",
-      sender: "technician",
-      timestamp: "19:25",
-      read: true,
-    },
-    {
-      id: "2",
-      text: "Genial, te espero en recepción",
-      sender: "user",
-      timestamp: "19:27",
-      read: true,
-    },
-  ])
+  const chatChannel = useMemo(() => supabase.channel(`chat-${serviceRequestId}`), [serviceRequestId, supabase])
+  const [messages, setMessages] = useState<Message[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [participantRole, setParticipantRole] = useState<Message["sender"]>("user")
+  const [participantRole, setParticipantRole] = useState<Message["sender"]>(viewerRole)
   const currentUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -136,13 +123,18 @@ export default function ChatPageClient({ technician }: ChatPageClientProps) {
     <AppShell hideNav>
       <div className="flex h-full flex-col bg-purple-50">
         <div className="flex items-center gap-3 border-b border-purple-100 bg-white px-4 py-3">
-          <Link href={`/servicio/${technician.id}`} className="rounded-full p-2 hover:bg-gray-100">
+          <Link
+            href={participantRole === "technician" ? `/tech/service/${serviceRequestId}` : `/client/service/${serviceRequestId}`}
+            className="rounded-full p-2 hover:bg-gray-100"
+          >
             <ArrowLeft className="h-5 w-5 text-gray-700" />
           </Link>
-          <img src={technician.avatar || "/placeholder.svg"} alt={technician.name} className="h-10 w-10 rounded-full" />
+          <img src={counterpart?.avatar || "/placeholder.svg"} alt={counterpart?.name ?? "Participante"} className="h-10 w-10 rounded-full" />
           <div className="flex-1">
-            <h2 className="font-semibold text-gray-900">{technician.name}</h2>
-            <p className="text-sm text-gray-500">{technician.specialty}</p>
+            <h2 className="font-semibold text-gray-900">{counterpart?.name ?? "Chat del servicio"}</h2>
+            <p className="text-sm text-gray-500">
+              {counterpart ? (counterpart.role === "technician" ? "Técnico asignado" : "Cliente") : "Esperando participante"}
+            </p>
           </div>
         </div>
 
