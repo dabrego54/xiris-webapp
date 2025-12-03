@@ -1,8 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+
 import AppShell from "@/components/AppShell"
 import MapViewportWithFloatingControls from "@/components/MapViewportWithFloatingControls"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 const POLLING_INTERVAL_MS = 6000
 
@@ -66,6 +75,9 @@ export default function DashboardPage() {
   const [isCancellingTechnicianSearch, setIsCancellingTechnicianSearch] = useState(false)
   const [isCandidateActionLoading, setIsCandidateActionLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isProblemDialogOpen, setIsProblemDialogOpen] = useState(false)
+  const [problemDescription, setProblemDescription] = useState("")
+  const [problemDescriptionError, setProblemDescriptionError] = useState<string | null>(null)
 
   const hasActiveRequest = Boolean(currentServiceRequestId)
   const normalizedStatus: RequestStatus = hasActiveRequest
@@ -81,7 +93,7 @@ export default function DashboardPage() {
     setUserLocation(location)
   }, [])
 
-  const handleCreateRequest = useCallback(async () => {
+  const handleCreateRequest = useCallback(async (description: string) => {
     if (!userLocation || !canRequestTechnician) {
       return
     }
@@ -94,7 +106,7 @@ export default function DashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          problemDescription: "Problema reportado desde el dashboard",
+          problemDescription: description,
           lat: userLocation.lat,
           lng: userLocation.lng,
         }),
@@ -117,6 +129,19 @@ export default function DashboardPage() {
       setIsRequestingTechnician(false)
     }
   }, [canRequestTechnician, userLocation])
+
+  const handleConfirmProblemDescription = useCallback(() => {
+    const trimmedDescription = problemDescription.trim()
+
+    if (!trimmedDescription) {
+      setProblemDescriptionError("Describe el problema para encontrar al técnico adecuado.")
+      return
+    }
+
+    setProblemDescriptionError(null)
+    setIsProblemDialogOpen(false)
+    void handleCreateRequest(trimmedDescription)
+  }, [handleCreateRequest, problemDescription])
 
   const handleCancelRequest = useCallback(async () => {
     if (!currentServiceRequestId || !["requested", "searching"].includes(requestStatus)) {
@@ -177,7 +202,10 @@ export default function DashboardPage() {
     ((normalizedStatus === "idle" || normalizedStatus === "cancelled" || normalizedStatus === "completed") &&
     canRequestTechnician &&
     !isRequestingTechnician
-      ? handleCreateRequest
+      ? () => {
+          setProblemDescriptionError(null)
+          setIsProblemDialogOpen(true)
+        }
       : (normalizedStatus === "requested" || normalizedStatus === "searching") && currentServiceRequestId
         ? handleCancelRequest
         : undefined)
@@ -463,6 +491,64 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        <Dialog
+          open={isProblemDialogOpen}
+          onOpenChange={(open) => {
+            setIsProblemDialogOpen(open)
+            if (!open) {
+              setProblemDescriptionError(null)
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader className="space-y-2">
+              <DialogTitle>¿Qué problema necesitas resolver?</DialogTitle>
+              <DialogDescription>
+                Cuéntanos el tipo de inconveniente para conectar al técnico adecuado. Esta información se compartirá con el
+                profesional.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-900" htmlFor="problem-description">
+                  Tipo de problema
+                </label>
+                <textarea
+                  id="problem-description"
+                  value={problemDescription}
+                  onChange={(event) => setProblemDescription(event.target.value)}
+                  rows={4}
+                  className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Ej: Corte de fibra, red de oficina caída, servidor sin respuesta, equipo sin acceso a internet…"
+                />
+                {problemDescriptionError ? (
+                  <p className="text-sm font-medium text-rose-600">{problemDescriptionError}</p>
+                ) : null}
+              </div>
+              <p className="text-xs text-gray-500">Este detalle aparecerá en la solicitud que recibe el técnico.</p>
+            </div>
+
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => setIsProblemDialogOpen(false)}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-gray-200 px-4 text-sm font-semibold text-gray-800 transition hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmProblemDescription}
+                disabled={isRequestingTechnician}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300"
+              >
+                {isRequestingTechnician ? "Iniciando búsqueda…" : "Confirmar búsqueda"}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {requestStatus === "candidate_ready" && technicianCandidate && (
           <div className="pointer-events-none absolute bottom-32 left-1/2 z-[11000] w-full max-w-md -translate-x-1/2 px-4 lg:left-auto lg:right-8 lg:translate-x-0">
