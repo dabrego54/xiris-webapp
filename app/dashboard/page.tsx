@@ -135,7 +135,7 @@ export default function DashboardPage() {
   const ctaHref = hasDetailLink && currentServiceRequestId ? `/client/service/${currentServiceRequestId}` : undefined
   const ctaOnClick =
     !hasDetailLink &&
-    requestStatus === "idle" &&
+    (requestStatus === "idle" || requestStatus === "cancelled" || requestStatus === "completed") &&
     canRequestTechnician &&
     !isRequestingTechnician
       ? handleCreateRequest
