@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useMemo, useState } from "react"
 import { Home, Briefcase, Search, MessageCircle, User, Wrench } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -8,17 +9,46 @@ type NavProps = {
   variant: "bottom" | "sidebar"
 }
 
-const navItems = [
-  { icon: Home, label: "Inicio", href: "/dashboard" },
-  { icon: Briefcase, label: "Servicios", href: "/servicios" },
-  { icon: Search, label: "Buscar", href: "/tecnicos" },
-  { icon: MessageCircle, label: "Chat", href: "/chat/1" },
-  { icon: User, label: "Perfil", href: "/perfil" },
-  { icon: Wrench, label: "Panel técnico", href: "/tech/dashboard" },
-]
-
 export default function Nav({ variant }: NavProps) {
   const pathname = usePathname()
+  const [chatHref, setChatHref] = useState("/chat")
+
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchActiveChat = async () => {
+      try {
+        const response = await fetch("/api/chat/active", { cache: "no-store" })
+        if (!response.ok) return
+
+        const payload = (await response.json()) as { serviceRequestId?: string | null }
+
+        if (isMounted && payload?.serviceRequestId) {
+          setChatHref(`/chat/${payload.serviceRequestId}`)
+        }
+      } catch (error) {
+        console.error("No se pudo obtener el chat activo.", error)
+      }
+    }
+
+    void fetchActiveChat()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const navItems = useMemo(
+    () => [
+      { icon: Home, label: "Inicio", href: "/dashboard" },
+      { icon: Briefcase, label: "Servicios", href: "/servicios" },
+      { icon: Search, label: "Buscar", href: "/tecnicos" },
+      { icon: MessageCircle, label: "Chat", href: chatHref },
+      { icon: User, label: "Perfil", href: "/perfil" },
+      { icon: Wrench, label: "Panel técnico", href: "/tech/dashboard" },
+    ],
+    [chatHref]
+  )
 
   if (variant === "bottom") {
     return (
