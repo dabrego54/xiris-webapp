@@ -134,7 +134,12 @@ export default function DashboardPage() {
     currentServiceRequestId && ["accepted", "on_route", "in_progress", "completed"].includes(requestStatus)
   const ctaHref = hasDetailLink && currentServiceRequestId ? `/client/service/${currentServiceRequestId}` : undefined
   const ctaOnClick =
-    !hasDetailLink && canRequestTechnician && !isRequestingTechnician ? handleCreateRequest : undefined
+    !hasDetailLink &&
+    requestStatus === "idle" &&
+    canRequestTechnician &&
+    !isRequestingTechnician
+      ? handleCreateRequest
+      : undefined
   const ctaDisabled = Boolean(ctaHref) ? false : !ctaOnClick
 
   const effectiveClientLocation = userLocation ?? serviceLocation
@@ -233,62 +238,59 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const restoreActiveService = async () => {
-      const storedServiceRequestId = localStorage.getItem("activeServiceRequestId")
-
-      if (storedServiceRequestId) {
-        setCurrentServiceRequestId(storedServiceRequestId)
-      }
-
       try {
         const response = await fetch("/api/client/request/active", { cache: "no-store" })
         const payload = await response.json().catch(() => null)
 
-        if (!response.ok) {
+        if (response.ok && payload?.service) {
+          const activeService = payload.service as {
+            id: string
+            status: RequestStatus
+            location: { lat: number | null; lng: number | null } | null
+            technicianCandidate?: TechnicianCandidate | null
+            technicianLocation?: { lat: number | null; lng: number | null } | null
+          }
+
+          setCurrentServiceRequestId(activeService.id)
+          setRequestStatus(activeService.status)
+
+          const nextServiceLocation =
+            typeof activeService.location?.lat === "number" && typeof activeService.location?.lng === "number"
+              ? ({ lat: activeService.location.lat, lng: activeService.location.lng } as const)
+              : null
+
+          if (nextServiceLocation) {
+            setServiceLocation(nextServiceLocation)
+          }
+
+          if (activeService.technicianCandidate) {
+            setTechnicianCandidate(activeService.technicianCandidate)
+          }
+
+          if (
+            typeof activeService.technicianLocation?.lat === "number" &&
+            typeof activeService.technicianLocation?.lng === "number"
+          ) {
+            setTechnicianLocation({
+              lat: activeService.technicianLocation.lat,
+              lng: activeService.technicianLocation.lng,
+            })
+          }
           return
         }
 
-        if (!payload?.service) {
-          setCurrentServiceRequestId(null)
-          setTechnicianCandidate(null)
-          setTechnicianLocation(null)
-          setServiceLocation(null)
-          setRequestStatus("idle")
+        const storedServiceRequestId = localStorage.getItem("activeServiceRequestId")
+
+        if (storedServiceRequestId) {
+          setCurrentServiceRequestId(storedServiceRequestId)
           return
         }
 
-        const activeService = payload.service as {
-          id: string
-          status: RequestStatus
-          location: { lat: number | null; lng: number | null } | null
-          technicianCandidate?: TechnicianCandidate | null
-          technicianLocation?: { lat: number | null; lng: number | null } | null
-        }
-
-        setCurrentServiceRequestId(activeService.id)
-        setRequestStatus(activeService.status)
-
-        const nextServiceLocation =
-          typeof activeService.location?.lat === "number" && typeof activeService.location?.lng === "number"
-            ? ({ lat: activeService.location.lat, lng: activeService.location.lng } as const)
-            : null
-
-        if (nextServiceLocation) {
-          setServiceLocation(nextServiceLocation)
-        }
-
-        if (activeService.technicianCandidate) {
-          setTechnicianCandidate(activeService.technicianCandidate)
-        }
-
-        if (
-          typeof activeService.technicianLocation?.lat === "number" &&
-          typeof activeService.technicianLocation?.lng === "number"
-        ) {
-          setTechnicianLocation({
-            lat: activeService.technicianLocation.lat,
-            lng: activeService.technicianLocation.lng,
-          })
-        }
+        setCurrentServiceRequestId(null)
+        setTechnicianCandidate(null)
+        setTechnicianLocation(null)
+        setServiceLocation(null)
+        setRequestStatus("idle")
       } catch (error) {
         console.error("No se pudo restaurar el servicio activo", error)
       }
