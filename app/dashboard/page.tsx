@@ -67,8 +67,15 @@ export default function DashboardPage() {
   const [isCandidateActionLoading, setIsCandidateActionLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  const hasActiveRequest = Boolean(currentServiceRequestId)
+  const normalizedStatus: RequestStatus = hasActiveRequest
+    ? requestStatus
+    : ["requested", "searching", "candidate_ready"].includes(requestStatus)
+      ? "idle"
+      : requestStatus
+
   const canRequestTechnician =
-    Boolean(userLocation) && (requestStatus === "idle" || requestStatus === "cancelled" || requestStatus === "completed")
+    Boolean(userLocation) && (normalizedStatus === "idle" || normalizedStatus === "cancelled" || normalizedStatus === "completed")
 
   const handleLocationUpdate = useCallback((location: { lat: number; lng: number } | null) => {
     setUserLocation(location)
@@ -143,7 +150,7 @@ export default function DashboardPage() {
   }, [currentServiceRequestId, requestStatus])
 
   const ctaLabel = useMemo(() => {
-    switch (requestStatus) {
+    switch (normalizedStatus) {
       case "idle":
       case "cancelled":
         return "Buscar técnico"
@@ -160,23 +167,23 @@ export default function DashboardPage() {
       default:
         return "Buscar técnico"
     }
-  }, [isCancellingTechnicianSearch, requestStatus])
+  }, [isCancellingTechnicianSearch, normalizedStatus])
 
   const hasDetailLink =
-    currentServiceRequestId && ["accepted", "on_route", "in_progress", "completed"].includes(requestStatus)
+    currentServiceRequestId && ["accepted", "on_route", "in_progress", "completed"].includes(normalizedStatus)
   const ctaHref = hasDetailLink && currentServiceRequestId ? `/client/service/${currentServiceRequestId}` : undefined
   const ctaOnClick =
     !hasDetailLink &&
-    ((requestStatus === "idle" || requestStatus === "cancelled" || requestStatus === "completed") &&
+    ((normalizedStatus === "idle" || normalizedStatus === "cancelled" || normalizedStatus === "completed") &&
     canRequestTechnician &&
     !isRequestingTechnician
       ? handleCreateRequest
-      : requestStatus === "requested" || requestStatus === "searching"
+      : (normalizedStatus === "requested" || normalizedStatus === "searching") && currentServiceRequestId
         ? handleCancelRequest
         : undefined)
   const ctaDisabled = Boolean(ctaHref)
     ? false
-    : requestStatus === "requested" || requestStatus === "searching"
+    : normalizedStatus === "requested" || normalizedStatus === "searching"
       ? isCancellingTechnicianSearch
       : !ctaOnClick
 
