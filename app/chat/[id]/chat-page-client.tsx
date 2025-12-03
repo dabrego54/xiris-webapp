@@ -42,11 +42,11 @@ export default function ChatPageClient({ serviceRequestId, counterpart, viewerRo
   useEffect(() => {
     const getSessionAndRole = async () => {
       const {
-        data: { session },
-      } = await supabase.auth.getSession()
+        data: { user },
+      } = await supabase.auth.getUser()
 
-      const userId = session?.user.id ?? null
-      const userType = (session?.user.user_metadata?.user_type as string | undefined) ?? "cliente"
+      const userId = user?.id ?? null
+      const userType = (user?.user_metadata?.user_type as string | undefined) ?? "cliente"
       const derivedRole = userType === "tecnico" ? "technician" : "user"
 
       setCurrentUserId(userId)

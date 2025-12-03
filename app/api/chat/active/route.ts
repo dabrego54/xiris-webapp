@@ -2,7 +2,15 @@ import { NextResponse } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
 
-const ACTIVE_CHAT_STATUSES = ["candidate_ready", "accepted", "on_route", "in_progress"] as const
+const ACTIVE_CHAT_STATUSES = [
+  "requested",
+  "searching",
+  "candidate_ready",
+  "accepted",
+  "on_route",
+  "in_progress",
+  "completed",
+] as const
 
 export async function GET() {
   try {
